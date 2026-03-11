@@ -9,7 +9,7 @@ export default createRouter({
     { path: '/products',   name: 'products',   component: () => import('@/views/ProductsView.vue')   },
     { path: '/orders',     name: 'orders',     component: () => import('@/views/OrdersView.vue')     },
     { path: '/customers',  name: 'customers',  component: () => import('@/views/CustomersView.vue')  },
-    // { path: '/analytics',  name: 'analytics',  component: () => import('@/views/AnalyticsView.vue')  },
-    // { path: '/settings',   name: 'settings',   component: () => import('@/views/SettingsView.vue')   },
+    { path: '/analytics',  name: 'analytics',  component: () => import('@/views/AnalyticsView.vue')  },
+    { path: '/settings',   name: 'settings',   component: () => import('@/views/SettingsView.vue')   },
   ],
 })
