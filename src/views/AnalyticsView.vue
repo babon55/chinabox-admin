@@ -1,221 +1,184 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useUiStore } from '@/stores/ui'
-import RevenueChart   from './analytics/RevenueChart.vue'
-import OrdersChart    from './analytics/OrdersChart.vue'
-import TopCategories  from './analytics/TopCategories.vue'
-import TopProducts    from './analytics/TopProducts.vue'
-import type { Lang } from '@/types'
+import { analyticsApi, type AnalyticsRange, type AnalyticsResponse } from '@/api/analytics'
 
 const ui   = useUiStore()
 const lang = computed(() => ui.lang)
 
-// ── Time range ────────────────────────────────────────────────────────────────
-type Range = '7d' | '30d' | '12m'
-const range = ref<Range>('30d')
+const range   = ref<AnalyticsRange>('30d')
+const data    = ref<AnalyticsResponse | null>(null)
+const loading = ref(true)
 
-const RANGE_LABELS: Record<Range, Record<Lang, string>> = {
-  '7d':  { tk: '7 gün',   ru: '7 дней'   },
-  '30d': { tk: '30 gün',  ru: '30 дней'  },
-  '12m': { tk: '12 aý',   ru: '12 месяцев' },
+async function load() {
+  loading.value = true
+  try {
+    const res = await analyticsApi.get(range.value)
+    data.value = res.data
+  } finally { loading.value = false }
 }
 
-// ── KPI cards ─────────────────────────────────────────────────────────────────
-const kpis = computed(() => {
-  const map = {
-    '7d':  { revenue: 48295,  orders: 284,  customers: 38,   aov: 170.05 },
-    '30d': { revenue: 182400, orders: 1284, customers: 212,  aov: 142.06 },
-    '12m': { revenue: 924800, orders: 7104, customers: 1840, aov: 130.18 },
-  }
-  const prev = {
-    '7d':  { revenue: 42100,  orders: 260,  customers: 32,   aov: 162.00 },
-    '30d': { revenue: 168000, orders: 1180, customers: 193,  aov: 142.37 },
-    '12m': { revenue: 834200, orders: 6540, customers: 1590, aov: 127.55 },
-  }
-  const cur = map[range.value]
-  const pre = prev[range.value]
-  const chg = (a: number, b: number) => Math.round(((a - b) / b) * 100 * 10) / 10
+onMounted(load)
+watch(range, load)
 
+const ranges = computed(() => [
+  { key: '7d',  label: lang.value === 'tk' ? '7 gün'  : '7 дней'   },
+  { key: '30d', label: lang.value === 'tk' ? '30 gün' : '30 дней'  },
+  { key: '12m', label: lang.value === 'tk' ? '12 aý'  : '12 мес.'  },
+])
+
+const kpiCards = computed(() => {
+  if (!data.value) return []
+  const { kpis } = data.value
+  const l = lang.value
   return [
-    { icon: 'revenue',   color: '#E8A020', label: { tk: 'Jemi girdeji',   ru: 'Общая выручка'    }, value: `$${cur.revenue.toLocaleString()}`, change: chg(cur.revenue, pre.revenue)   },
-    { icon: 'orders',    color: '#3B82F6', label: { tk: 'Sargytlar',      ru: 'Заказов'          }, value: cur.orders.toLocaleString(),         change: chg(cur.orders, pre.orders)     },
-    { icon: 'customers', color: '#22C55E', label: { tk: 'Täze müşderiler', ru: 'Новых клиентов'  }, value: cur.customers.toLocaleString(),      change: chg(cur.customers, pre.customers) },
-    { icon: 'aov',       color: '#8B5CF6', label: { tk: 'Ortalama sargyt', ru: 'Средний чек'     }, value: `$${cur.aov}`,                       change: chg(cur.aov, pre.aov)           },
+    { label: l === 'tk' ? 'Girdéji'       : 'Доход',               value: `$${kpis.revenue.value.toFixed(2)}`,   change: kpis.revenue.change   },
+    { label: l === 'tk' ? 'Sargytlar'     : 'Заказы',              value: kpis.orders.value,                     change: kpis.orders.change    },
+    { label: l === 'tk' ? 'Täze müşderi' : 'Новые клиенты',       value: kpis.customers.value,                  change: kpis.customers.change },
+    { label: l === 'tk' ? 'Ortaça sargyt': 'Средний чек',         value: `$${kpis.aov.value.toFixed(2)}`,        change: kpis.aov.change       },
   ]
 })
 
-// ── Revenue chart data ────────────────────────────────────────────────────────
-const revenuePoints = computed(() => {
-  const days7tk  = ['Duş','Si','Çar','Pen','An','Şen','Ýek']
-  const days7ru  = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс']
-  const days30   = Array.from({ length: 10 }, (_, i) => `${(i + 1) * 3}`)
-  const months   = { tk: ['Ýan','Few','Mar','Apr','Maý','Iýun','Iýul','Awg','Sen','Okt','Noý','Dek'],
-                     ru: ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'] }
-  if (range.value === '7d') {
-    const lbls = lang.value === 'tk' ? days7tk : days7ru
-    const vals = [6200, 8100, 5800, 9400, 7600, 11200, 9100]
-    return lbls.map((l, i) => ({ label: l, value: vals[i] }))
-  }
-  if (range.value === '30d') {
-    const vals = [14200, 18600, 12400, 21800, 16900, 23400, 19100, 25200, 18700, 22600]
-    return days30.map((l, i) => ({ label: l, value: vals[i] }))
-  }
-  // 12m
-  const vals = [62000, 58000, 74000, 68000, 82000, 91000, 88000, 76000, 94000, 87000, 102000, 97000]
-  return months[lang.value].map((l, i) => ({ label: l, value: vals[i] }))
-})
+// SVG chart helpers
+const chartW = 600; const chartH = 180; const pad = 40
 
-// ── Orders chart data ─────────────────────────────────────────────────────────
-const ordersPoints = computed(() => {
-  const days7tk = ['Duş','Si','Çar','Pen','An','Şen','Ýek']
-  const days7ru = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс']
-  const days30  = Array.from({ length: 10 }, (_, i) => `${(i + 1) * 3}`)
-  const months  = { tk: ['Ýan','Few','Mar','Apr','Maý','Iýun','Iýul','Awg','Sen','Okt','Noý','Dek'],
-                    ru: ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'] }
-  if (range.value === '7d') {
-    const lbls = lang.value === 'tk' ? days7tk : days7ru
-    return lbls.map((l, i) => ({ label: l, value: [32, 45, 28, 54, 41, 63, 48][i] }))
-  }
-  if (range.value === '30d') {
-    const vals = [88, 112, 76, 134, 102, 148, 118, 155, 108, 143]
-    return days30.map((l, i) => ({ label: l, value: vals[i] }))
-  }
-  const vals = [410, 380, 520, 490, 580, 640, 610, 540, 680, 620, 740, 690]
-  return months[lang.value].map((l, i) => ({ label: l, value: vals[i] }))
-})
-
-// ── Top categories ────────────────────────────────────────────────────────────
-const catMap = {
-  '7d':  [142, 88, 64, 52, 38],
-  '30d': [584, 312, 218, 187, 143],
-  '12m': [2840, 1620, 1140, 980, 740],
+function revenuePoints(items: { revenue: number }[]) {
+  const max = Math.max(...items.map(i => i.revenue), 1)
+  return items.map((item, i) => {
+    const x = pad + (i / (items.length - 1)) * (chartW - pad * 2)
+    const y = chartH - pad - (item.revenue / max) * (chartH - pad * 2)
+    return `${x},${y}`
+  }).join(' ')
 }
-const categories = computed(() => {
-  const vals = catMap[range.value]
-  return [
-    { label: { tk: 'Elektronika', ru: 'Электроника' }, value: vals[0], color: '#E8A020' },
-    { label: { tk: 'Aksesuar',    ru: 'Аксессуары'  }, value: vals[1], color: '#3B82F6' },
-    { label: { tk: 'Egin-eşik',   ru: 'Одежда'      }, value: vals[2], color: '#22C55E' },
-    { label: { tk: 'Gözellik',    ru: 'Красота'      }, value: vals[3], color: '#8B5CF6' },
-    { label: { tk: 'Öý üçin',     ru: 'Для дома'    }, value: vals[4], color: '#F59E0B' },
-  ]
-})
-
-// ── Top products ──────────────────────────────────────────────────────────────
-const productMap = {
-  '7d':  [{ sold: 58, rev: 1449.42 }, { sold: 44, rev: 3959.56 }, { sold: 91, rev: 1181.09 }, { sold: 38, rev: 949.62 }, { sold: 27, rev: 499.50 }],
-  '30d': [{ sold: 284, rev: 7095.16 }, { sold: 173, rev: 15566.27 }, { sold: 461, rev: 5992.39 }, { sold: 198, rev: 4949.02 }, { sold: 134, rev: 2479.00 }],
-  '12m': [{ sold: 1840, rev: 45991.60 }, { sold: 1024, rev: 92147.76 }, { sold: 2810, rev: 36521.90 }, { sold: 1398, rev: 34940.02 }, { sold: 890, rev: 16465.00 }],
+function revenuePath(items: { revenue: number }[]) {
+  const pts = revenuePoints(items).split(' ')
+  if (pts.length < 2) return ''
+  const last = pts[pts.length - 1].split(',')
+  const first = pts[0].split(',')
+  return `M ${pts.join(' L ')} L ${last[0]},${chartH - pad} L ${first[0]},${chartH - pad} Z`
 }
-const topProducts = computed(() =>
-  productMap[range.value].map((p, i) => ({
-    name: [
-      { tk: 'Simsiz Gulaklyk Pro',  ru: 'Наушники Pro'             },
-      { tk: 'Akylly Sagat Series 3', ru: 'Умные часы Series 3'     },
-      { tk: 'Göçme Zarýadlaýjy',    ru: 'Портативная зарядка'     },
-      { tk: 'Bluetooth Dinamigi',   ru: 'Bluetooth-колонка'       },
-      { tk: 'Kamera Çantasy',       ru: 'Сумка для камеры'        },
-    ][i] as Record<Lang, string>,
-    image:   ['🎧','⌚','🔋','🔊','🎒'][i],
-    sold:    p.sold,
-    revenue: p.rev,
-  }))
-)
-
-// ── Translations ──────────────────────────────────────────────────────────────
-const L = computed(() => lang.value === 'tk' ? {
-  vsLabel: 'öňki döwür bilen deňeşdirilende',
-} : {
-  vsLabel: 'по сравнению с прошлым периодом',
-})
+function ordersBars(items: { orders: number }[]) {
+  const max = Math.max(...items.map(i => i.orders), 1)
+  const bw  = (chartW - pad * 2) / items.length * 0.6
+  return items.map((item, i) => {
+    const x = pad + (i / items.length) * (chartW - pad * 2) + bw * 0.4
+    const h = (item.orders / max) * (chartH - pad * 2)
+    const y = chartH - pad - h
+    return { x, y, w: bw, h, orders: item.orders }
+  })
+}
 </script>
 
 <template>
-  <div class="view">
+  <div class="analytics">
 
     <!-- Range selector -->
-    <div class="toolbar">
-      <div class="range-tabs">
-        <button v-for="r in (['7d','30d','12m'] as Range[])" :key="r"
-          :class="['rtab', { active: range === r }]"
-          @click="range = r">
-          {{ RANGE_LABELS[r][lang] }}
-        </button>
-      </div>
-      <p class="vs-label">{{ L.vsLabel }}</p>
+    <div class="range-bar">
+      <button v-for="r in ranges" :key="r.key" :class="['rtab', { active: range === r.key }]" @click="range = r.key as AnalyticsRange">{{ r.label }}</button>
     </div>
 
-    <!-- KPI row -->
-    <div class="kpi-row">
-      <div v-for="k in kpis" :key="k.icon" class="kpi-card">
-        <div class="kpi-icon" :style="{ background: k.color + '18', color: k.color }">
-          <svg v-if="k.icon==='revenue'"   viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-          <svg v-if="k.icon==='orders'"    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-          <svg v-if="k.icon==='customers'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          <svg v-if="k.icon==='aov'"       viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-        </div>
-        <div class="kpi-body">
-          <p class="kpi-label">{{ k.label[lang] }}</p>
-          <p class="kpi-value">{{ k.value }}</p>
-          <p :class="['kpi-change', k.change >= 0 ? 'up' : 'down']">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <polyline v-if="k.change >= 0" points="18 15 12 9 6 15"/>
-              <polyline v-else               points="6 9 12 15 18 9"/>
-            </svg>
-            {{ Math.abs(k.change) }}%
-          </p>
+    <div v-if="loading" class="loading-state"><div class="spinner"></div></div>
+
+    <template v-else-if="data">
+
+      <!-- KPI cards -->
+      <div class="kpi-grid">
+        <div v-for="k in kpiCards" :key="k.label" class="kpi-card">
+          <div class="kpi-label">{{ k.label }}</div>
+          <div class="kpi-value">{{ k.value }}</div>
+          <div :class="['kpi-change', k.change >= 0 ? 'pos' : 'neg']">
+            {{ k.change >= 0 ? '↑' : '↓' }} {{ Math.abs(k.change) }}%
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Charts row 1: Revenue (wide) + Orders -->
-    <div class="charts-row">
-      <div class="chart-wide">
-        <RevenueChart :points="revenuePoints" :lang="lang" />
+      <!-- Revenue chart -->
+      <div class="card">
+        <h3 class="card-title">{{ lang === 'tk' ? 'Girdéji dinamikasy' : 'Динамика дохода' }}</h3>
+        <div class="chart-wrap">
+          <svg :viewBox="`0 0 ${chartW} ${chartH}`" class="chart-svg" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stop-color="#E8A020" stop-opacity="0.35"/>
+                <stop offset="100%" stop-color="#E8A020" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <path :d="revenuePath(data.timeSeries)" fill="url(#revGrad)" />
+            <polyline :points="revenuePoints(data.timeSeries)" fill="none" stroke="#E8A020" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- X labels -->
+            <text v-for="(pt, i) in data.timeSeries" :key="i"
+              :x="pad + (i / (data.timeSeries.length - 1)) * (chartW - pad * 2)"
+              :y="chartH - 4" text-anchor="middle" font-size="9" fill="#9CA3AF">{{ pt.label }}</text>
+          </svg>
+        </div>
       </div>
-      <div class="chart-narrow">
-        <OrdersChart :points="ordersPoints" :lang="lang" />
+
+      <!-- Orders chart -->
+      <div class="card">
+        <h3 class="card-title">{{ lang === 'tk' ? 'Sargytlar sany' : 'Количество заказов' }}</h3>
+        <div class="chart-wrap">
+          <svg :viewBox="`0 0 ${chartW} ${chartH}`" class="chart-svg" preserveAspectRatio="none">
+            <rect v-for="(b, i) in ordersBars(data.timeSeries)" :key="i"
+              :x="b.x" :y="b.y" :width="b.w" :height="b.h"
+              rx="3" fill="#3B82F6" opacity="0.85"/>
+            <text v-for="(pt, i) in data.timeSeries" :key="'l'+i"
+              :x="pad + (i / data.timeSeries.length) * (chartW - pad * 2) + ((chartW - pad * 2) / data.timeSeries.length * 0.6) / 2 + (chartW - pad * 2) / data.timeSeries.length * 0.2"
+              :y="chartH - 4" text-anchor="middle" font-size="9" fill="#9CA3AF">{{ pt.label }}</text>
+          </svg>
+        </div>
       </div>
-    </div>
 
-    <!-- Charts row 2: Top categories + Top products -->
-    <div class="charts-row">
-      <TopCategories :items="categories" :lang="lang" />
-      <TopProducts   :items="topProducts" :lang="lang" />
-    </div>
+      <!-- Top products -->
+      <div class="card">
+        <h3 class="card-title">{{ lang === 'tk' ? 'Iň köp satylýan' : 'Топ продуктов' }}</h3>
+        <div class="top-list">
+          <div v-for="(p, i) in data.topProducts" :key="p.id" class="top-row">
+            <span :class="['rank', 'rank-'+(i+1)]">{{ i + 1 }}</span>
+            <span class="top-img">{{ p.image }}</span>
+            <div class="top-info">
+              <div class="top-name">{{ lang === 'tk' ? p.nameTk : p.nameRu }}</div>
+              <div class="top-bar-wrap">
+                <div class="top-bar" :style="{ width: (p.sold / (data.topProducts[0]?.sold || 1) * 100) + '%' }"></div>
+              </div>
+            </div>
+            <span class="top-sold">{{ p.sold }} {{ lang === 'tk' ? 'sat.' : 'прод.' }}</span>
+          </div>
+        </div>
+      </div>
 
+    </template>
   </div>
 </template>
 
 <style scoped>
-.view { display: flex; flex-direction: column; gap: 20px; }
-
-/* Toolbar */
-.toolbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.range-tabs { display: flex; gap: 4px; background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius-md); padding: 3px; }
-.rtab { padding: 5px 16px; border-radius: var(--radius-sm); border: none; background: transparent; font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; transition: all .15s; font-family: var(--font-body); }
-.rtab:hover  { background: var(--surface); color: var(--dark); }
+.analytics { display: flex; flex-direction: column; gap: 16px; }
+.range-bar { display: flex; gap: 4px; background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius-md); padding: 4px; width: fit-content; }
+.rtab { padding: 6px 18px; border-radius: var(--radius-sm); border: none; background: transparent; font-size: 13px; font-weight: 700; color: var(--subtle); cursor: pointer; font-family: var(--font-body); transition: all .15s; }
 .rtab.active { background: var(--dark); color: var(--white); }
-.vs-label { font-size: 12px; color: var(--subtle); }
-
-/* KPI row */
-.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-.kpi-card { background: var(--white); border-radius: var(--radius-xl); border: 1.5px solid var(--border-light); box-shadow: var(--shadow-sm); padding: 18px 20px; display: flex; align-items: center; gap: 14px; transition: box-shadow .2s, transform .2s; }
-.kpi-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
-.kpi-icon { width: 44px; height: 44px; border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.kpi-icon svg { width: 20px; height: 20px; }
-.kpi-label  { font-size: 11px; font-weight: 600; color: var(--subtle); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
-.kpi-value  { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--dark); line-height: 1; margin-bottom: 4px; }
-.kpi-change { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 700; }
-.kpi-change svg { width: 12px; height: 12px; }
-.kpi-change.up   { color: var(--success); }
-.kpi-change.down { color: var(--error); }
-
-/* Chart rows */
-.charts-row { display: grid; grid-template-columns: 1.6fr 1fr; gap: 18px; }
-.chart-wide, .chart-narrow { min-width: 0; }
-
-@media (max-width: 1100px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 860px)  { .charts-row { grid-template-columns: 1fr; } }
-@media (max-width: 560px)  { .kpi-row { grid-template-columns: 1fr 1fr; } }
+.loading-state { display: flex; justify-content: center; padding: 80px; }
+.spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.kpi-card { background: var(--white); border-radius: var(--radius-lg); padding: 18px 20px; border: 1.5px solid var(--border-light); box-shadow: var(--shadow-sm); }
+.kpi-label { font-size: 12px; color: var(--subtle); margin-bottom: 6px; }
+.kpi-value { font-size: 24px; font-weight: 800; color: var(--dark); font-family: var(--font-display); }
+.kpi-change { font-size: 12px; font-weight: 700; margin-top: 6px; }
+.kpi-change.pos { color: #22C55E; }
+.kpi-change.neg { color: #EF4444; }
+.card { background: var(--white); border-radius: var(--radius-lg); padding: 20px 24px; border: 1.5px solid var(--border-light); box-shadow: var(--shadow-sm); }
+.card-title { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--dark); margin-bottom: 16px; }
+.chart-wrap { width: 100%; overflow: hidden; }
+.chart-svg { width: 100%; height: 180px; }
+.top-list { display: flex; flex-direction: column; gap: 10px; }
+.top-row { display: flex; align-items: center; gap: 12px; }
+.rank { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; background: var(--border-light); color: var(--subtle); flex-shrink: 0; }
+.rank-1 { background: #FEF3C7; color: #92400E; }
+.rank-2 { background: #F3F4F6; color: #374151; }
+.rank-3 { background: #FEF9EC; color: #B45309; }
+.top-img  { font-size: 22px; flex-shrink: 0; }
+.top-info { flex: 1; min-width: 0; }
+.top-name { font-size: 13px; font-weight: 700; color: var(--dark); margin-bottom: 4px; }
+.top-bar-wrap { height: 5px; background: var(--border-light); border-radius: var(--radius-pill); }
+.top-bar  { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-dark)); border-radius: var(--radius-pill); transition: width .4s ease; }
+.top-sold { font-size: 13px; font-weight: 700; color: var(--gold); flex-shrink: 0; }
 </style>

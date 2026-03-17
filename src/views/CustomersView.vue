@@ -1,302 +1,445 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useUiStore } from '@/stores/ui'
-import CustomerTable  from './customers/CustomerTable.vue'
-import CustomerDrawer from './customers/CustomerDrawer.vue'
-import CustomerModal  from './customers/CustomerModal.vue'
-import type { CustomerItem, CustomerForm, CustomerStatus } from '@/types'
+import { customersApi, type Customer, type CustomerForm } from '@/api/customers'
 
 const ui   = useUiStore()
 const lang = computed(() => ui.lang)
 
-const L = computed(() => lang.value === 'tk' ? {
-  total: 'Jemi müşderi', active: 'Işjeň', blocked: 'Bloklanan', newThisMonth: 'Bu aý täze',
-  search: 'Müşderi gözle...', all: 'Hemmesi',
-  deleteConfirm: 'Bu müşderini pozmak isleýärsiňizmi?',
-  showing: 'Görkezilýär', of: '/',
-} : {
-  total: 'Всего клиентов', active: 'Активных', blocked: 'Заблокировано', newThisMonth: 'Новых в месяц',
-  search: 'Поиск клиента...', all: 'Все',
-  deleteConfirm: 'Удалить этого клиента?',
-  showing: 'Показано', of: 'из',
+const customers    = ref<Customer[]>([])
+const total        = ref(0)
+const page         = ref(1)
+const loading      = ref(true)
+const search       = ref('')
+const filter       = ref<'ALL' | 'ACTIVE' | 'BLOCKED'>('ALL')
+const drawer       = ref<Customer | null>(null)
+const drawerTab    = ref<'details' | 'orders'>('details')
+const drawerLoading = ref(false)
+const showModal    = ref(false)
+const editTarget   = ref<Customer | null>(null)
+const saving       = ref(false)
+const form         = ref<CustomerForm & { status: 'ACTIVE' | 'BLOCKED' }>({ name: '', email: '', phone: '', address: '', status: 'ACTIVE' })
+const formErrors   = ref<Record<string, string>>({})
+const deleteTarget = ref<Customer | null>(null)
+const deleting     = ref(false)
+
+const toast = ref<{ msg: string; type: 'success' | 'error' } | null>(null)
+function showToast(msg: string, type: 'success' | 'error' = 'success') {
+  toast.value = { msg, type }
+  setTimeout(() => toast.value = null, 2800)
+}
+
+async function load() {
+  loading.value = true
+  try {
+    const res = await customersApi.list({ status: filter.value === 'ALL' ? undefined : filter.value, search: search.value || undefined, page: page.value })
+    customers.value = res.data.items
+    total.value     = res.data.total
+  } finally { loading.value = false }
+}
+
+onMounted(load)
+watch([filter, page], load)
+let st: ReturnType<typeof setTimeout>
+watch(search, () => { clearTimeout(st); st = setTimeout(() => { page.value = 1; load() }, 400) })
+
+// ── Open drawer — fetch full customer with orders ─────────────────────────────
+async function openDrawer(c: Customer, tab: 'details' | 'orders' = 'details') {
+  drawer.value    = c
+  drawerTab.value = tab
+  drawerLoading.value = true
+  try {
+    const res = await customersApi.get(c.id)
+    drawer.value = res.data
+  } catch {
+    // keep the list data if fetch fails
+  } finally {
+    drawerLoading.value = false
+  }
+}
+
+const stats = computed(() => {
+  const l = lang.value
+  return [
+    { label: l === 'tk' ? 'Jemi müşderi'      : 'Всего клиентов',  value: total.value },
+    { label: l === 'tk' ? 'Işjeň'             : 'Активные',        value: customers.value.filter(c => c.status === 'ACTIVE').length  },
+    { label: l === 'tk' ? 'Bloklanan'         : 'Заблокированные', value: customers.value.filter(c => c.status === 'BLOCKED').length },
+    { label: l === 'tk' ? 'Umumy satyn alyş'  : 'Общие покупки',   value: `$${customers.value.reduce((s, c) => s + (c.totalSpent ?? 0), 0).toFixed(2)}` },
+  ]
 })
 
-// ── Mock data ─────────────────────────────────────────────────────────────────
-const customers = ref<CustomerItem[]>([
-  {
-    id: 'CST-001', name: 'Merdan Ataýew', email: 'merdan@mail.com', phone: '+993 65 123456',
-    address: 'Aşgabat, Bitarap Türkmenistan köç. 12, 16-njy öý',
-    status: 'active', totalOrders: 8, totalSpent: 412.50, joined: '12.01.2025',
-    orders: [
-      { id: 'ORD-4825', total: 50.97,  status: 'delivered',  date: '08.03.2026' },
-      { id: 'ORD-4801', total: 89.99,  status: 'delivered',  date: '10.02.2026' },
-      { id: 'ORD-4780', total: 124.00, status: 'cancelled',  date: '15.01.2026' },
-    ],
-  },
-  {
-    id: 'CST-002', name: 'Aýna Durdyýewa', email: 'ayna@mail.com', phone: '+993 62 654321',
-    address: 'Aşgabat, Görogly köç. 44, 3-nji öý',
-    status: 'active', totalOrders: 5, totalSpent: 289.95, joined: '03.03.2025',
-    orders: [
-      { id: 'ORD-4824', total: 89.99, status: 'shipped',   date: '08.03.2026' },
-      { id: 'ORD-4810', total: 45.00, status: 'delivered', date: '20.02.2026' },
-    ],
-  },
-  {
-    id: 'CST-003', name: 'Serdar Nurýew', email: 'serdar@mail.com', phone: '+993 61 987654',
-    address: 'Mary, Mollanepes köç. 7, 22-nji öý',
-    status: 'active', totalOrders: 12, totalSpent: 870.20, joined: '17.06.2024',
-    orders: [
-      { id: 'ORD-4823', total: 113.48, status: 'processing', date: '07.03.2026' },
-      { id: 'ORD-4799', total: 210.00, status: 'delivered',  date: '01.02.2026' },
-      { id: 'ORD-4755', total: 54.99,  status: 'delivered',  date: '10.01.2026' },
-    ],
-  },
-  {
-    id: 'CST-004', name: 'Güljeren Orazowa', email: 'guljeren@mail.com', phone: '+993 63 112233',
-    address: 'Türkmenabat, Magtymguly köç. 3, 5-nji öý',
-    status: 'active', totalOrders: 3, totalSpent: 74.97, joined: '22.11.2025',
-    orders: [
-      { id: 'ORD-4822', total: 24.97, status: 'pending', date: '07.03.2026' },
-    ],
-  },
-  {
-    id: 'CST-005', name: 'Döwlet Hojamow', email: 'dowlet@mail.com', phone: '+993 64 445566',
-    address: 'Balkanabat, Ruhy köç. 18, 9-njy öý',
-    status: 'blocked', totalOrders: 2, totalSpent: 99.97, joined: '05.01.2026',
-    orders: [
-      { id: 'ORD-4821', total: 99.97, status: 'cancelled', date: '06.03.2026' },
-    ],
-  },
-  {
-    id: 'CST-006', name: 'Orazgül Annaýewa', email: 'orazgul@mail.com', phone: '+993 65 778899',
-    address: 'Aşgabat, Andalyp köç. 56, 12-nji öý',
-    status: 'active', totalOrders: 6, totalSpent: 509.94, joined: '14.08.2024',
-    orders: [
-      { id: 'ORD-4820', total: 84.98, status: 'pending',   date: '06.03.2026' },
-      { id: 'ORD-4808', total: 159.98, status: 'delivered', date: '18.02.2026' },
-    ],
-  },
-  {
-    id: 'CST-007', name: 'Baýram Myradow', email: 'bayram@mail.com', phone: '+993 62 334455',
-    address: 'Daşoguz, Nurmuhammet Andalyp köç. 2, 7-nji öý',
-    status: 'active', totalOrders: 4, totalSpent: 239.93, joined: '30.10.2025',
-    orders: [
-      { id: 'ORD-4819', total: 79.96, status: 'shipped',   date: '05.03.2026' },
-      { id: 'ORD-4790', total: 34.99, status: 'delivered', date: '25.01.2026' },
-    ],
-  },
-  {
-    id: 'CST-008', name: 'Maral Halmyradowa', email: 'maral@mail.com', phone: '+993 61 667788',
-    address: 'Aşgabat, Oguzhan köç. 9, 4-nji öý',
-    status: 'active', totalOrders: 1, totalSpent: 24.99, joined: '01.03.2026',
-    orders: [
-      { id: 'ORD-4826', total: 24.99, status: 'pending', date: '09.03.2026' },
-    ],
-  },
+const filters = computed(() => [
+  { key: 'ALL',     label: lang.value === 'tk' ? 'Hemmesi'   : 'Все'             },
+  { key: 'ACTIVE',  label: lang.value === 'tk' ? 'Işjeň'     : 'Активные'        },
+  { key: 'BLOCKED', label: lang.value === 'tk' ? 'Bloklanan' : 'Заблокированные' },
 ])
 
-// ── Search + Filter ───────────────────────────────────────────────────────────
-const search       = ref('')
-const statusFilter = ref<CustomerStatus | 'all'>('all')
-
-const filtered = computed(() => {
-  let list = customers.value
-  if (search.value.trim()) {
-    const q = search.value.toLowerCase()
-    list = list.filter(c =>
-      c.name.toLowerCase().includes(q) ||
-      c.email.toLowerCase().includes(q) ||
-      c.id.toLowerCase().includes(q)
-    )
-  }
-  if (statusFilter.value !== 'all') {
-    list = list.filter(c => c.status === statusFilter.value)
-  }
-  return list
-})
-
-const totalCount    = computed(() => customers.value.length)
-const activeCount   = computed(() => customers.value.filter(c => c.status === 'active').length)
-const blockedCount  = computed(() => customers.value.filter(c => c.status === 'blocked').length)
-const newThisMonth  = computed(() => customers.value.filter(c => c.joined.endsWith('2026')).length)
-
-// ── Drawer ────────────────────────────────────────────────────────────────────
-const drawerOpen      = ref(false)
-const activeCustomer  = ref<CustomerItem | null>(null)
-
-function openDrawer(c: CustomerItem) { activeCustomer.value = c; drawerOpen.value = true }
-function closeDrawer() { drawerOpen.value = false }
-
-// ── Edit modal ────────────────────────────────────────────────────────────────
-const modalOpen = ref(false)
-const editing   = ref<CustomerItem | null>(null)
-
-function openEdit(c: CustomerItem) {
-  editing.value   = c
-  modalOpen.value = true
-  drawerOpen.value = false
+const AVATAR_COLORS = ['#E8A020','#3B82F6','#22C55E','#8B5CF6','#EC4899','#14B8A6']
+function avatarColor(name: string) {
+  return AVATAR_COLORS[(name ?? '').split('').reduce((s, c) => s + c.charCodeAt(0), 0) % AVATAR_COLORS.length]
 }
 
-function saveCustomer(form: CustomerForm) {
-  const idx = customers.value.findIndex(c => c.id === editing.value!.id)
-  if (idx !== -1) {
-    customers.value[idx] = { ...customers.value[idx], ...form }
-    // keep activeCustomer in sync
-    if (activeCustomer.value?.id === editing.value!.id) {
-      activeCustomer.value = { ...activeCustomer.value, ...form }
+function openEdit(c: Customer) {
+  editTarget.value = c
+  form.value       = { name: c.name, email: c.email, phone: c.phone, address: c.address, status: c.status }
+  formErrors.value = {}
+  showModal.value  = true
+}
+
+function validate() {
+  const e: Record<string, string> = {}
+  const req = lang.value === 'tk' ? 'Hökman' : 'Обязательно'
+  if (!form.value.name)    e.name    = req
+  if (!form.value.email)   e.email   = req
+  if (!form.value.phone)   e.phone   = req
+  if (!form.value.address) e.address = req
+  formErrors.value = e
+  return Object.keys(e).length === 0
+}
+
+async function save() {
+  if (!validate()) return
+  saving.value = true
+  try {
+    if (editTarget.value) {
+      const res = await customersApi.update(editTarget.value.id, form.value)
+      if (drawer.value?.id === editTarget.value.id) drawer.value = { ...drawer.value, ...res.data }
+      showToast(lang.value === 'tk' ? 'Müşderi täzelendi' : 'Клиент обновлён')
     }
-  }
-  modalOpen.value = false
-  editing.value   = null
+    showModal.value = false
+    await load()
+  } catch (err: unknown) {
+    showToast((err as any)?.response?.data?.message ?? 'Error', 'error')
+  } finally { saving.value = false }
 }
 
-// ── Delete ────────────────────────────────────────────────────────────────────
-const deleteTarget  = ref<CustomerItem | null>(null)
-const deleteConfirm = ref(false)
-
-function askDelete(c: CustomerItem) { deleteTarget.value = c; deleteConfirm.value = true; drawerOpen.value = false }
-function confirmDelete() {
-  if (deleteTarget.value) customers.value = customers.value.filter(c => c.id !== deleteTarget.value!.id)
-  deleteTarget.value = null; deleteConfirm.value = false
+async function confirmDelete() {
+  if (!deleteTarget.value) return
+  deleting.value = true
+  try {
+    await customersApi.remove(deleteTarget.value.id)
+    showToast(lang.value === 'tk' ? 'Müşderi pozuldy' : 'Клиент удалён')
+    deleteTarget.value = null
+    drawer.value = null
+    await load()
+  } catch (err: unknown) {
+    showToast((err as any)?.response?.data?.message ?? 'Error', 'error')
+  } finally { deleting.value = false }
 }
 
-const statusOptions: Array<CustomerStatus | 'all'> = ['all', 'active', 'blocked']
-const statusLabel: Record<CustomerStatus | 'all', Record<'tk' | 'ru', string>> = {
-  all:     { tk: 'Hemmesi',     ru: 'Все'            },
-  active:  { tk: 'Işjeň',      ru: 'Активные'       },
-  blocked: { tk: 'Bloklanan',  ru: 'Заблокированные' },
+const STATUS_LABELS: Record<string, Record<string, string>> = {
+  PENDING:    { tk: 'Garaşylýar',  ru: 'Ожидание'  },
+  PROCESSING: { tk: 'Işlenilýär',  ru: 'В работе'  },
+  SHIPPED:    { tk: 'Ugradyldy',   ru: 'Отправлен' },
+  DELIVERED:  { tk: 'Gowşuryldy', ru: 'Доставлен' },
+  CANCELLED:  { tk: 'Ýatyryldy',  ru: 'Отменён'   },
 }
+
+function fmt(n: number | string) { return Number(n).toFixed(2) }
+function fmtDate(d: string) { return new Date(d).toLocaleDateString(lang.value === 'tk' ? 'tk-TM' : 'ru-RU', { day: '2-digit', month: 'short', year: 'numeric' }) }
 </script>
 
 <template>
-  <div class="view">
+  <div class="customers">
 
-    <!-- Summary -->
-    <div class="summary">
-      <div class="s-card">
-        <div class="s-icon" style="background:rgba(232,160,32,.1);color:var(--gold)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        </div>
-        <div><p class="s-label">{{ L.total }}</p><p class="s-value">{{ totalCount }}</p></div>
-      </div>
-      <div class="s-card">
-        <div class="s-icon" style="background:rgba(34,197,94,.1);color:#22C55E">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-        </div>
-        <div><p class="s-label">{{ L.active }}</p><p class="s-value" style="color:#22C55E">{{ activeCount }}</p></div>
-      </div>
-      <div class="s-card">
-        <div class="s-icon" style="background:rgba(239,68,68,.1);color:#EF4444">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-        </div>
-        <div><p class="s-label">{{ L.blocked }}</p><p class="s-value" style="color:#EF4444">{{ blockedCount }}</p></div>
-      </div>
-      <div class="s-card">
-        <div class="s-icon" style="background:rgba(59,130,246,.1);color:#3B82F6">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        </div>
-        <div><p class="s-label">{{ L.newThisMonth }}</p><p class="s-value" style="color:#3B82F6">{{ newThisMonth }}</p></div>
+    <Transition name="toast">
+      <div v-if="toast" :class="['toast', toast.type]">{{ toast.msg }}</div>
+    </Transition>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div v-for="s in stats" :key="s.label" class="stat-card">
+        <div class="stat-value">{{ s.value }}</div>
+        <div class="stat-label">{{ s.label }}</div>
       </div>
     </div>
 
     <!-- Toolbar -->
     <div class="toolbar">
-      <label class="search-wrap">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-        <input v-model="search" :placeholder="L.search" />
-      </label>
       <div class="filter-tabs">
-        <button v-for="s in statusOptions" :key="s"
-          :class="['tab', { active: statusFilter === s }]"
-          @click="statusFilter = s">
-          {{ statusLabel[s][lang] }}
-        </button>
+        <button v-for="f in filters" :key="f.key" :class="['ftab', { active: filter === f.key }]" @click="filter = f.key as any; page = 1">{{ f.label }}</button>
+      </div>
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input v-model="search" class="search" :placeholder="lang === 'tk' ? 'Gözle...' : 'Поиск...'" />
       </div>
     </div>
 
     <!-- Table -->
-    <CustomerTable :customers="filtered" :lang="lang"
-      @view="openDrawer" @edit="openEdit" @delete="askDelete" />
-
-    <!-- Showing count -->
-    <p class="showing">{{ L.showing }} {{ filtered.length }} {{ L.of }} {{ totalCount }}</p>
-
-    <!-- Detail drawer -->
-    <CustomerDrawer :open="drawerOpen" :customer="activeCustomer" :lang="lang"
-      @close="closeDrawer" @edit="openEdit" />
-
-    <!-- Edit modal -->
-    <CustomerModal :open="modalOpen" :editing="editing" :lang="lang"
-      @close="modalOpen = false" @save="saveCustomer" />
-
-    <!-- Delete confirm -->
-    <Teleport to="body">
-      <Transition name="modal">
-        <div v-if="deleteConfirm" class="overlay" @click.self="deleteConfirm = false">
-          <div class="confirm-box">
-            <div class="confirm-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                <path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-              </svg>
+    <div class="card">
+      <div v-if="loading" class="table-loading"><div class="spinner"></div></div>
+      <template v-else>
+        <div class="table">
+          <div class="t-head">
+            <span>{{ lang === 'tk' ? 'Müşderi' : 'Клиент' }}</span>
+            <span>{{ lang === 'tk' ? 'Telefon' : 'Телефон' }}</span>
+            <span>{{ lang === 'tk' ? 'Sargytlar' : 'Заказы' }}</span>
+            <span>{{ lang === 'tk' ? 'Jemi sarp edildi' : 'Потрачено' }}</span>
+            <span>{{ lang === 'tk' ? 'Ýagdaý' : 'Статус' }}</span>
+            <span>{{ lang === 'tk' ? 'Goşulan' : 'Дата' }}</span>
+            <span></span>
+          </div>
+          <div v-for="c in customers" :key="c.id" class="t-row" @click="openDrawer(c)">
+            <div class="cust-cell">
+              <div class="avatar" :style="{ background: avatarColor(c.name) }">{{ c.name[0] }}</div>
+              <div>
+                <div class="cust-name">{{ c.name }}</div>
+                <div class="cust-email">{{ c.email }}</div>
+              </div>
             </div>
-            <p class="confirm-text">{{ L.deleteConfirm }}</p>
-            <p class="confirm-name">{{ deleteTarget?.name }}</p>
-            <div class="confirm-actions">
-              <button class="btn-cancel" @click="deleteConfirm = false">{{ lang === 'tk' ? 'Ýok' : 'Отмена' }}</button>
-              <button class="btn-delete" @click="confirmDelete">{{ lang === 'tk' ? 'Hawa, poz' : 'Да, удалить' }}</button>
+            <span class="cell-muted">{{ c.phone }}</span>
+            <span class="cell-muted">{{ c._count?.orders ?? 0 }}</span>
+            <span class="cell-bold">${{ fmt(c.totalSpent ?? 0) }}</span>
+            <span :class="['badge', c.status.toLowerCase()]">{{ c.status === 'ACTIVE' ? (lang === 'tk' ? 'Işjeň' : 'Активный') : (lang === 'tk' ? 'Blokly' : 'Заблокирован') }}</span>
+            <span class="cell-muted">{{ fmtDate(c.createdAt) }}</span>
+            <div class="actions" @click.stop>
+              <button class="act-btn edit" @click="openEdit(c)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button class="act-btn del" @click="deleteTarget = c">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+              </button>
             </div>
           </div>
+          <div v-if="!customers.length" class="empty">{{ lang === 'tk' ? 'Müşderi tapylmady' : 'Клиенты не найдены' }}</div>
         </div>
-      </Transition>
-    </Teleport>
+      </template>
+    </div>
 
+    <!-- Drawer -->
+    <Transition name="drawer">
+      <div v-if="drawer" class="drawer-overlay" @click.self="drawer = null">
+        <div class="drawer">
+          <div class="drawer-head">
+            <div class="drawer-avatar" :style="{ background: avatarColor(drawer.name) }">{{ drawer.name[0] }}</div>
+            <div style="flex:1">
+              <h3>{{ drawer.name }}</h3>
+              <p>{{ drawer.email }}</p>
+            </div>
+            <button class="close-btn" @click="drawer = null">×</button>
+          </div>
+          <div class="drawer-tabs">
+            <button :class="['dtab', { active: drawerTab === 'details' }]" @click="drawerTab = 'details'">{{ lang === 'tk' ? 'Maglumat' : 'Данные' }}</button>
+            <button :class="['dtab', { active: drawerTab === 'orders' }]" @click="drawerTab = 'orders'">{{ lang === 'tk' ? 'Sargytlar' : 'Заказы' }} <span v-if="drawer._count?.orders" class="tab-count">{{ drawer._count.orders }}</span></button>
+          </div>
+
+          <!-- Loading state -->
+          <div v-if="drawerLoading" class="drawer-loading">
+            <div class="spinner"></div>
+          </div>
+
+          <template v-else>
+            <!-- Details tab -->
+            <div v-if="drawerTab === 'details'" class="drawer-section">
+              <div class="stats-mini">
+                <div class="mini-stat">
+                  <div class="mini-val">{{ drawer._count?.orders ?? 0 }}</div>
+                  <div class="mini-lbl">{{ lang === 'tk' ? 'Sargytlar' : 'Заказы' }}</div>
+                </div>
+                <div class="mini-stat">
+                  <div class="mini-val">${{ fmt(drawer.totalSpent ?? 0) }}</div>
+                  <div class="mini-lbl">{{ lang === 'tk' ? 'Jemi' : 'Потрачено' }}</div>
+                </div>
+                <div class="mini-stat">
+                  <span :class="['badge', drawer.status.toLowerCase()]">{{ drawer.status === 'ACTIVE' ? (lang === 'tk' ? 'Işjeň' : 'Активный') : (lang === 'tk' ? 'Blokly' : 'Заблокирован') }}</span>
+                </div>
+              </div>
+              <div class="info-card">
+                <div class="info-row"><span>{{ lang === 'tk' ? 'Telefon' : 'Телефон' }}</span><strong>{{ drawer.phone }}</strong></div>
+                <div class="info-row"><span>{{ lang === 'tk' ? 'Salgy' : 'Адрес' }}</span><strong>{{ drawer.address }}</strong></div>
+                <div class="info-row"><span>{{ lang === 'tk' ? 'Goşulan' : 'Зарегистрирован' }}</span><strong>{{ fmtDate(drawer.createdAt) }}</strong></div>
+              </div>
+              <button class="edit-full-btn" @click="openEdit(drawer)">
+                {{ lang === 'tk' ? 'Maglumatlary üýtget' : 'Редактировать' }}
+              </button>
+            </div>
+
+            <!-- Orders tab -->
+            <div v-if="drawerTab === 'orders'" class="drawer-section">
+              <div v-if="!drawer.orders?.length" class="empty-tab">{{ lang === 'tk' ? 'Sargyt ýok' : 'Нет заказов' }}</div>
+              <div v-for="o in drawer.orders" :key="o.id" class="order-mini">
+                <div>
+                  <div class="order-mid">#{{ o.id.slice(-6).toUpperCase() }}</div>
+                  <div class="order-mdate">{{ fmtDate(o.createdAt) }}</div>
+                </div>
+                <span :class="['badge', o.status.toLowerCase()]">{{ STATUS_LABELS[o.status]?.[lang] }}</span>
+                <strong class="order-mtotal">${{ fmt(o.total) }}</strong>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Edit Modal -->
+    <Transition name="modal">
+      <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
+        <div class="modal">
+          <div class="modal-head">
+            <h3>{{ lang === 'tk' ? 'Müşderini üýtget' : 'Редактировать клиента' }}</h3>
+            <button class="close-btn" @click="showModal = false">×</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-row">
+              <div class="field">
+                <label class="label">{{ lang === 'tk' ? 'Ady' : 'Имя' }}</label>
+                <input v-model="form.name" class="input" :class="{ error: formErrors.name }" />
+                <span v-if="formErrors.name" class="err">{{ formErrors.name }}</span>
+              </div>
+              <div class="field">
+                <label class="label">{{ lang === 'tk' ? 'E-poçta' : 'Email' }}</label>
+                <input v-model="form.email" type="email" class="input" :class="{ error: formErrors.email }" />
+                <span v-if="formErrors.email" class="err">{{ formErrors.email }}</span>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="field">
+                <label class="label">{{ lang === 'tk' ? 'Telefon' : 'Телефон' }}</label>
+                <input v-model="form.phone" class="input" :class="{ error: formErrors.phone }" />
+              </div>
+              <div class="field">
+                <label class="label">{{ lang === 'tk' ? 'Ýagdaý' : 'Статус' }}</label>
+                <select v-model="form.status" class="input">
+                  <option value="ACTIVE">{{ lang === 'tk' ? 'Işjeň' : 'Активный' }}</option>
+                  <option value="BLOCKED">{{ lang === 'tk' ? 'Blokla' : 'Заблокировать' }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="field">
+              <label class="label">{{ lang === 'tk' ? 'Salgy' : 'Адрес' }}</label>
+              <input v-model="form.address" class="input" :class="{ error: formErrors.address }" />
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button class="cancel-btn" @click="showModal = false">{{ lang === 'tk' ? 'Ýatyr' : 'Отмена' }}</button>
+            <button class="save-btn" :disabled="saving" @click="save">{{ saving ? '...' : (lang === 'tk' ? 'Ýatda sakla' : 'Сохранить') }}</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Delete confirm -->
+    <Transition name="modal">
+      <div v-if="deleteTarget" class="modal-overlay" @click.self="deleteTarget = null">
+        <div class="modal modal-sm">
+          <div class="modal-head">
+            <h3>{{ lang === 'tk' ? 'Pozmagy tassykla' : 'Подтвердить удаление' }}</h3>
+            <button class="close-btn" @click="deleteTarget = null">×</button>
+          </div>
+          <div class="modal-body"><p>{{ lang === 'tk' ? `"${deleteTarget?.name}" müşderini pozmak isleýärsiňizmi?` : `Удалить клиента "${deleteTarget?.name}"?` }}</p></div>
+          <div class="modal-foot">
+            <button class="cancel-btn" @click="deleteTarget = null">{{ lang === 'tk' ? 'Ýok' : 'Нет' }}</button>
+            <button class="del-btn" :disabled="deleting" @click="confirmDelete">{{ deleting ? '...' : (lang === 'tk' ? 'Hawa, poz' : 'Да, удалить') }}</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
-.view { display: flex; flex-direction: column; gap: 18px; }
+.customers { display: flex; flex-direction: column; gap: 16px; }
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.stat-card { background: var(--white); border-radius: var(--radius-lg); padding: 16px 20px; border: 1.5px solid var(--border-light); box-shadow: var(--shadow-sm); }
+.stat-value { font-size: 22px; font-weight: 800; color: var(--dark); font-family: var(--font-display); }
+.stat-label { font-size: 12px; color: var(--subtle); margin-top: 4px; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.filter-tabs { display: flex; gap: 4px; background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius-md); padding: 4px; }
+.ftab { padding: 5px 14px; border-radius: var(--radius-sm); border: none; background: transparent; font-size: 13px; font-weight: 600; color: var(--subtle); cursor: pointer; font-family: var(--font-body); transition: all .15s; }
+.ftab.active { background: var(--dark); color: var(--white); }
+.search-wrap { position: relative; }
+.search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--subtle); }
+.search { height: 38px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--white); padding: 0 12px 0 32px; font-size: 13px; font-family: var(--font-body); color: var(--dark); outline: none; width: 200px; }
+.search:focus { border-color: var(--gold); }
+.card { background: var(--white); border-radius: var(--radius-lg); border: 1.5px solid var(--border-light); overflow: hidden; box-shadow: var(--shadow-sm); }
+.table-loading { display: flex; justify-content: center; padding: 60px; }
+.spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.t-head { display: grid; grid-template-columns: 2fr 1fr 70px 110px 110px 100px 80px; gap: 8px; padding: 10px 20px; background: var(--surface); font-size: 11px; font-weight: 700; color: var(--subtle); text-transform: uppercase; letter-spacing: .04em; }
+.t-row { display: grid; grid-template-columns: 2fr 1fr 70px 110px 110px 100px 80px; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border-light); align-items: center; cursor: pointer; transition: background .12s; }
+.t-row:hover { background: var(--surface); }
+.cust-cell { display: flex; align-items: center; gap: 10px; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: var(--white); flex-shrink: 0; }
+.cust-name  { font-size: 13px; font-weight: 700; color: var(--dark); }
+.cust-email { font-size: 11px; color: var(--subtle); margin-top: 1px; }
+.cell-muted { font-size: 13px; color: var(--subtle); }
+.cell-bold  { font-size: 13px; font-weight: 700; color: var(--dark); }
+.badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: var(--radius-pill); font-size: 11px; font-weight: 700; }
+.badge.active     { background: #DCFCE7; color: #14532D; }
+.badge.blocked    { background: #FEE2E2; color: #991B1B; }
+.badge.pending    { background: #FEF3C7; color: #92400E; }
+.badge.processing { background: #DBEAFE; color: #1E40AF; }
+.badge.shipped    { background: #EDE9FE; color: #5B21B6; }
+.badge.delivered  { background: #DCFCE7; color: #14532D; }
+.badge.cancelled  { background: #FEE2E2; color: #991B1B; }
+.actions { display: flex; gap: 6px; }
+.act-btn { width: 30px; height: 30px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--surface); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted); transition: all .15s; }
+.act-btn svg { width: 13px; height: 13px; }
+.act-btn.edit:hover { border-color: var(--gold); color: var(--gold); background: var(--gold-glow); }
+.act-btn.del:hover  { border-color: var(--error); color: var(--error); background: var(--error-bg); }
+.empty { padding: 40px; text-align: center; color: var(--subtle); font-size: 14px; }
 
-.summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-.s-card { background: var(--white); border-radius: var(--radius-xl); border: 1.5px solid var(--border-light); box-shadow: var(--shadow-sm); padding: 16px 20px; display: flex; align-items: center; gap: 14px; }
-.s-icon { width: 44px; height: 44px; border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.s-icon svg { width: 20px; height: 20px; }
-.s-label { font-size: 11px; font-weight: 600; color: var(--subtle); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
-.s-value { font-family: var(--font-display); font-size: 26px; font-weight: 700; color: var(--dark); line-height: 1; }
+/* Drawer */
+.drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 900; }
+.drawer { position: fixed; top: 0; right: 0; width: 400px; height: 100vh; background: var(--white); box-shadow: -8px 0 40px rgba(0,0,0,.15); overflow-y: auto; }
+.drawer-head { display: flex; align-items: center; gap: 12px; padding: 24px; border-bottom: 1px solid var(--border-light); }
+.drawer-avatar { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: var(--white); flex-shrink: 0; }
+.drawer-head h3 { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--dark); }
+.drawer-head p  { font-size: 12px; color: var(--subtle); margin-top: 2px; }
+.close-btn { width: 30px; height: 30px; border-radius: 50%; border: none; background: var(--surface); font-size: 18px; cursor: pointer; color: var(--muted); flex-shrink: 0; }
+.drawer-tabs { display: flex; border-bottom: 1px solid var(--border-light); padding: 0 24px; }
+.dtab { padding: 12px 16px; border: none; background: none; font-size: 13px; font-weight: 700; color: var(--subtle); cursor: pointer; border-bottom: 2px solid transparent; font-family: var(--font-body); transition: all .15s; margin-bottom: -1px; display: flex; align-items: center; gap: 6px; }
+.dtab.active { color: var(--gold); border-bottom-color: var(--gold); }
+.tab-count { background: var(--gold); color: #fff; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: var(--radius-pill); }
+.drawer-loading { display: flex; justify-content: center; padding: 40px; }
+.drawer-section { padding: 20px 24px; }
+.stats-mini { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.mini-stat { background: var(--surface); border-radius: var(--radius-md); padding: 12px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.mini-val { font-size: 18px; font-weight: 800; color: var(--dark); font-family: var(--font-display); }
+.mini-lbl { font-size: 11px; color: var(--subtle); margin-top: 3px; }
+.info-card { background: var(--surface); border-radius: var(--radius-md); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.info-row { display: flex; justify-content: space-between; font-size: 13px; }
+.info-row span { color: var(--subtle); }
+.info-row strong { color: var(--dark); text-align: right; max-width: 60%; }
+.edit-full-btn { margin-top: 14px; width: 100%; height: 40px; border-radius: var(--radius-md); border: 1.5px solid var(--gold); background: var(--gold-glow); color: var(--gold); font-size: 13px; font-weight: 700; cursor: pointer; font-family: var(--font-body); transition: all .15s; }
+.edit-full-btn:hover { background: var(--gold); color: var(--white); }
+.empty-tab { text-align: center; padding: 30px; color: var(--subtle); font-size: 14px; }
+.order-mini { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--surface); margin-bottom: 8px; }
+.order-mid   { font-size: 13px; font-weight: 700; color: var(--gold); font-family: monospace; }
+.order-mdate { font-size: 11px; color: var(--subtle); margin-top: 2px; }
+.order-mtotal { font-size: 14px; font-weight: 700; color: var(--dark); margin-left: auto; }
 
-.toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.search-wrap { display: flex; align-items: center; gap: 8px; background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius-md); padding: 0 12px; height: 38px; min-width: 240px; cursor: text; transition: border-color .15s, box-shadow .15s; }
-.search-wrap:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-glow); }
-.search-wrap svg { width: 14px; height: 14px; color: var(--subtle); flex-shrink: 0; }
-.search-wrap input { flex: 1; border: none; background: transparent; outline: none; font-size: 13px; font-family: var(--font-body); color: var(--dark); }
-.search-wrap input::placeholder { color: var(--subtle); }
+/* Modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+.modal { background: var(--white); border-radius: var(--radius-xl); width: 100%; max-width: 500px; box-shadow: 0 24px 64px rgba(0,0,0,.3); }
+.modal-sm { max-width: 380px; }
+.modal-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 0; }
+.modal-head h3 { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--dark); }
+.modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+.modal-body p { font-size: 14px; color: var(--dark); }
+.modal-foot { display: flex; gap: 10px; justify-content: flex-end; padding: 0 24px 20px; }
+.field { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+.label { font-size: 12px; font-weight: 700; color: var(--dark); }
+.input { height: 40px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--surface); padding: 0 12px; font-size: 13px; font-family: var(--font-body); color: var(--dark); outline: none; width: 100%; box-sizing: border-box; }
+.input:focus { border-color: var(--gold); background: var(--white); }
+.input.error { border-color: var(--error); }
+.err { font-size: 11px; color: var(--error); }
+.form-row { display: flex; gap: 12px; }
+.cancel-btn { height: 38px; padding: 0 16px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; font-family: var(--font-body); }
+.save-btn { height: 38px; padding: 0 20px; border-radius: var(--radius-md); border: none; background: linear-gradient(135deg, var(--gold), var(--gold-dark)); font-size: 13px; font-weight: 700; color: var(--white); cursor: pointer; font-family: var(--font-body); }
+.save-btn:disabled { opacity: .7; cursor: not-allowed; }
+.del-btn { height: 38px; padding: 0 20px; border-radius: var(--radius-md); border: none; background: var(--error); font-size: 13px; font-weight: 700; color: var(--white); cursor: pointer; font-family: var(--font-body); }
 
-.filter-tabs { display: flex; gap: 4px; background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius-md); padding: 3px; }
-.tab { padding: 4px 12px; border-radius: var(--radius-sm); border: none; background: transparent; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; transition: all .15s; font-family: var(--font-body); white-space: nowrap; }
-.tab:hover  { background: var(--surface); color: var(--dark); }
-.tab.active { background: var(--dark); color: var(--white); }
-
-.showing { font-size: 12px; color: var(--subtle); font-weight: 500; text-align: right; }
-
-.overlay { position: fixed; inset: 0; z-index: 500; background: rgba(15,17,23,.55); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 20px; }
-.confirm-box { background: var(--white); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); padding: 28px; width: 100%; max-width: 360px; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
-.confirm-icon { width: 52px; height: 52px; border-radius: 50%; background: var(--error-bg); display: flex; align-items: center; justify-content: center; color: var(--error); }
-.confirm-icon svg { width: 24px; height: 24px; }
-.confirm-text { font-size: 15px; font-weight: 700; color: var(--dark); }
-.confirm-name { font-size: 13px; color: var(--muted); background: var(--surface); padding: 6px 14px; border-radius: var(--radius-md); }
-.confirm-actions { display: flex; gap: 10px; margin-top: 4px; }
-.btn-cancel { height: 38px; padding: 0 18px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--surface); font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; font-family: var(--font-body); transition: all .15s; }
-.btn-cancel:hover { border-color: var(--dark); color: var(--dark); }
-.btn-delete { height: 38px; padding: 0 18px; border-radius: var(--radius-md); border: none; background: var(--error); font-size: 13px; font-weight: 800; color: #fff; cursor: pointer; font-family: var(--font-body); transition: background .15s; }
-.btn-delete:hover { background: #DC2626; }
-
+/* Toast */
+.toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: var(--radius-md); font-size: 14px; font-weight: 700; z-index: 9999; box-shadow: 0 8px 24px rgba(0,0,0,.15); }
+.toast.success { background: #22C55E; color: var(--white); }
+.toast.error   { background: var(--error); color: var(--white); }
+.toast-enter-active, .toast-leave-active { transition: all .25s; }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(12px); }
+.drawer-enter-active, .drawer-leave-active { transition: opacity .2s; }
+.drawer-enter-active .drawer, .drawer-leave-active .drawer { transition: transform .25s cubic-bezier(.4,0,.2,1); }
+.drawer-enter-from .drawer, .drawer-leave-to .drawer { transform: translateX(100%); }
+.drawer-enter-from, .drawer-leave-to { opacity: 0; }
 .modal-enter-active, .modal-leave-active { transition: opacity .2s; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
-
-@media (max-width: 900px) { .summary { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 500px)  { .summary { grid-template-columns: 1fr 1fr; } }
 </style>

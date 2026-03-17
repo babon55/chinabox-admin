@@ -1,41 +1,39 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute, RouterView } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useUiStore } from '@/stores/ui'
 import TheSidebar from '@/components/layout/TheSidebar.vue'
 import TheTopbar  from '@/components/layout/TheTopbar.vue'
 
-const ui    = useUiStore()
-const route = useRoute()
-
-const contentStyle = computed(() => ({
-  marginLeft: ui.sidebarOffset,
-  paddingTop: 'var(--topbar-h)',
-}))
+const route      = useRoute()
+const ui         = useUiStore()
+const showLayout = computed(() => route.name !== 'login')
+const mainMargin = computed(() => ui.collapsed ? 'var(--sidebar-collapsed)' : 'var(--sidebar-width)')
 </script>
 
 <template>
-  <div class="shell">
+  <div v-if="showLayout" class="shell">
     <TheSidebar />
-    <TheTopbar :title="ui.pageTitle(route.path)" />
-    <main class="content" :style="contentStyle">
-      <RouterView v-slot="{ Component }">
-        <Transition name="page" mode="out-in">
-          <component :is="Component" />
-        </Transition>
-      </RouterView>
-    </main>
+    <div class="main" :style="{ marginLeft: mainMargin }">
+      <TheTopbar />
+      <div class="content">
+        <RouterView v-slot="{ Component }">
+          <Transition name="page" mode="out-in">
+            <component :is="Component" />
+          </Transition>
+        </RouterView>
+      </div>
+    </div>
   </div>
+
+  <RouterView v-else />
 </template>
 
 <style scoped>
-.shell { min-height: 100vh; }
-.content {
-  min-height: 100vh;
-  padding: 28px;
-  transition: margin-left 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-}
-@media (max-width: 768px) {
-  .content { margin-left: 0 !important; padding: 16px; }
-}
+.shell { display: flex; min-height: 100vh; background: var(--content-bg); }
+.main  { flex: 1; display: flex; flex-direction: column; min-width: 0; transition: margin-left .28s cubic-bezier(.4,0,.2,1); }
+.content { flex: 1; padding: 28px; overflow-y: auto; }
+.page-enter-active, .page-leave-active { transition: opacity .15s, transform .15s; }
+.page-enter-from  { opacity: 0; transform: translateY(6px); }
+.page-leave-to    { opacity: 0; transform: translateY(-4px); }
 </style>

@@ -1,314 +1,334 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useUiStore } from '@/stores/ui'
-import OrderTable  from './orders/OrderTable.vue'
-import OrderDrawer from './orders/OrderDrawer.vue'
-import type { OrderItem, OrderStatus } from '@/types'
+import { ordersApi, type Order, type OrderStatus } from '@/api/orders'
 
 const ui   = useUiStore()
 const lang = computed(() => ui.lang)
 
-const L = computed(() => lang.value === 'tk' ? {
-  total: 'Jemi sargyt', pending: 'Garaşylýar', processing: 'Işlenýär', delivered: 'Eltildi',
-  search: 'Sargyt gözle...', all: 'Hemmesi',
-  deleteConfirm: 'Bu sargydy pozmak isleýärsiňizmi?',
-  showing: 'Görkezilýär', of: '/',
-} : {
-  total: 'Всего заказов', pending: 'Ожидают', processing: 'В обработке', delivered: 'Доставлено',
-  search: 'Поиск заказа...', all: 'Все',
-  deleteConfirm: 'Удалить этот заказ?',
-  showing: 'Показано', of: 'из',
-})
+const orders  = ref<Order[]>([])
+const total   = ref(0)
+const page    = ref(1)
+const loading = ref(true)
+const search  = ref('')
+const filter  = ref<'ALL' | OrderStatus>('ALL')
+const drawer  = ref<Order | null>(null)
+const updating = ref(false)
+const deleteTarget = ref<Order | null>(null)
+const deleting     = ref(false)
 
-// ── Mock data ─────────────────────────────────────────────────────────────────
-const orders = ref<OrderItem[]>([
-  {
-    id: 'ORD-4825', customer: 'Merdan Ataýew', email: 'merdan@mail.com', phone: '+993 65 123456',
-    address: 'Aşgabat, Bitarap Türkmenistan köç. 12, 16-njy öý',
-    lines: [
-      { productId: 'PRD-001', name: { tk: 'Simsiz Gulaklyk Pro',   ru: 'Наушники Pro'        }, image: '🎧', qty: 1, unitPrice: 24.99 },
-      { productId: 'PRD-003', name: { tk: 'Göçme Zarýadlaýjy',    ru: 'Портативная зарядка' }, image: '🔋', qty: 2, unitPrice: 12.99 },
-    ],
-    total: 50.97, status: 'delivered', date: '08.03.2026',
-  },
-  {
-    id: 'ORD-4824', customer: 'Aýna Durdyýewa', email: 'ayna@mail.com', phone: '+993 62 654321',
-    address: 'Aşgabat, Görogly köç. 44, 3-nji öý',
-    lines: [
-      { productId: 'PRD-002', name: { tk: 'Akylly Sagat Series 3', ru: 'Умные часы Series 3' }, image: '⌚', qty: 1, unitPrice: 89.99 },
-    ],
-    total: 89.99, status: 'shipped', date: '08.03.2026',
-    note: 'Sowgat bukjasy bilen iberilmegini haýyş edýärin.',
-  },
-  {
-    id: 'ORD-4823', customer: 'Serdar Nurýew', email: 'serdar@mail.com', phone: '+993 61 987654',
-    address: 'Mary, Mollanepes köç. 7, 22-nji öý',
-    lines: [
-      { productId: 'PRD-004', name: { tk: 'Bluetooth Dinamigi',   ru: 'Bluetooth-колонка'   }, image: '🔊', qty: 2, unitPrice: 24.99 },
-      { productId: 'PRD-005', name: { tk: 'Kamera Çantasy',       ru: 'Сумка для камеры'    }, image: '🎒', qty: 1, unitPrice: 18.50 },
-      { productId: 'PRD-009', name: { tk: 'Ýüz Kremi',            ru: 'Крем для лица'       }, image: '🧴', qty: 3, unitPrice: 15.00 },
-    ],
-    total: 113.48, status: 'processing', date: '07.03.2026',
-  },
-  {
-    id: 'ORD-4822', customer: 'Güljeren Orazowa', email: 'guljeren@mail.com', phone: '+993 63 112233',
-    address: 'Türkmenabat, Magtymguly köç. 3, 5-nji öý',
-    lines: [
-      { productId: 'PRD-006', name: { tk: 'Akylly Lampochka',     ru: 'Умная лампочка'      }, image: '💡', qty: 2, unitPrice: 9.99  },
-    ],
-    total: 24.97, status: 'pending', date: '07.03.2026',
-  },
-  {
-    id: 'ORD-4821', customer: 'Döwlet Hojamow', email: 'dowlet@mail.com', phone: '+993 64 445566',
-    address: 'Balkanabat, Ruhy köç. 18, 9-njy öý',
-    lines: [
-      { productId: 'PRD-007', name: { tk: 'USB-C Hub 7-in-1',     ru: 'USB-C Hub 7-в-1'    }, image: '🔌', qty: 1, unitPrice: 34.99 },
-      { productId: 'PRD-010', name: { tk: 'Mehaniki Klawiatura',  ru: 'Механическая клавиатура' }, image: '⌨️', qty: 1, unitPrice: 59.99 },
-    ],
-    total: 99.97, status: 'cancelled', date: '06.03.2026',
-    note: 'Müşderi yzyna gaýtarma talap etdi.',
-  },
-  {
-    id: 'ORD-4820', customer: 'Orazgül Annaýewa', email: 'orazgul@mail.com', phone: '+993 65 778899',
-    address: 'Aşgabat, Andalyp köç. 56, 12-nji öý',
-    lines: [
-      { productId: 'PRD-008', name: { tk: 'Sport Köwüş Nike',     ru: 'Кроссовки Nike'      }, image: '👟', qty: 1, unitPrice: 79.99 },
-    ],
-    total: 84.98, status: 'pending', date: '06.03.2026',
-  },
-  {
-    id: 'ORD-4819', customer: 'Baýram Myradow', email: 'bayram@mail.com', phone: '+993 62 334455',
-    address: 'Daşoguz, Nurmuhammet Andalyp köç. 2, 7-nji öý',
-    lines: [
-      { productId: 'PRD-001', name: { tk: 'Simsiz Gulaklyk Pro',   ru: 'Наушники Pro'        }, image: '🎧', qty: 2, unitPrice: 24.99 },
-      { productId: 'PRD-004', name: { tk: 'Bluetooth Dinamigi',   ru: 'Bluetooth-колонка'   }, image: '🔊', qty: 1, unitPrice: 24.99 },
-    ],
-    total: 79.96, status: 'shipped', date: '05.03.2026',
-  },
+const toast = ref<{ msg: string; type: 'success' | 'error' } | null>(null)
+function showToast(msg: string, type: 'success' | 'error' = 'success') {
+  toast.value = { msg, type }
+  setTimeout(() => toast.value = null, 2800)
+}
+
+async function load() {
+  loading.value = true
+  try {
+    const res = await ordersApi.list({ status: filter.value === 'ALL' ? undefined : filter.value, search: search.value || undefined, page: page.value })
+    orders.value = res.data.items
+    total.value  = res.data.total
+  } finally { loading.value = false }
+}
+
+onMounted(load)
+watch([filter, page], load)
+let st: ReturnType<typeof setTimeout>
+watch(search, () => { clearTimeout(st); st = setTimeout(() => { page.value = 1; load() }, 400) })
+
+const STATUS_LABELS: Record<string, Record<string, string>> = {
+  PENDING:    { tk: 'Garaşylýar',  ru: 'Ожидание'  },
+  PROCESSING: { tk: 'Işlenilýär',  ru: 'В работе'  },
+  SHIPPED:    { tk: 'Ugradyldy',   ru: 'Отправлен' },
+  DELIVERED:  { tk: 'Gowşuryldy', ru: 'Доставлен' },
+  CANCELLED:  { tk: 'Ýatyryldy',  ru: 'Отменён'   },
+}
+const STATUS_OPTIONS: OrderStatus[] = ['PENDING','PROCESSING','SHIPPED','DELIVERED','CANCELLED']
+
+const filters = computed(() => [
+  { key: 'ALL', label: lang.value === 'tk' ? 'Hemmesi' : 'Все' },
+  ...STATUS_OPTIONS.map(s => ({ key: s, label: STATUS_LABELS[s][lang.value] })),
 ])
 
-// ── Search + Filter ───────────────────────────────────────────────────────────
-const search       = ref('')
-const statusFilter = ref<OrderStatus | 'all'>('all')
-
-const filtered = computed(() => {
-  let list = orders.value
-  if (search.value.trim()) {
-    const q = search.value.toLowerCase()
-    list = list.filter(o =>
-      o.id.toLowerCase().includes(q) ||
-      o.customer.toLowerCase().includes(q) ||
-      o.email.toLowerCase().includes(q)
-    )
-  }
-  if (statusFilter.value !== 'all') {
-    list = list.filter(o => o.status === statusFilter.value)
-  }
-  return list
+const stats = computed(() => {
+  const counts = STATUS_OPTIONS.reduce((a, s) => { a[s] = orders.value.filter(o => o.status === s).length; return a }, {} as Record<string, number>)
+  const l = lang.value
+  return [
+    { label: l === 'tk' ? 'Jemi' : 'Всего',         value: total.value },
+    { label: STATUS_LABELS.PENDING[l],               value: counts.PENDING    ?? 0 },
+    { label: STATUS_LABELS.PROCESSING[l],            value: counts.PROCESSING ?? 0 },
+    { label: STATUS_LABELS.DELIVERED[l],             value: counts.DELIVERED  ?? 0 },
+  ]
 })
 
-// ── Summary counts ────────────────────────────────────────────────────────────
-const totalCount     = computed(() => orders.value.length)
-const pendingCount   = computed(() => orders.value.filter(o => o.status === 'pending').length)
-const processingCount= computed(() => orders.value.filter(o => o.status === 'processing').length)
-const deliveredCount = computed(() => orders.value.filter(o => o.status === 'delivered').length)
-
-// ── Drawer ────────────────────────────────────────────────────────────────────
-const drawerOpen  = ref(false)
-const activeOrder = ref<OrderItem | null>(null)
-
-function openDrawer(order: OrderItem) { activeOrder.value = order; drawerOpen.value = true }
-function closeDrawer() { drawerOpen.value = false }
-
-function onStatusChange(id: string, status: OrderStatus) {
-  const o = orders.value.find(o => o.id === id)
-  if (o) o.status = status
-  // also update activeOrder so drawer re-renders immediately
-  if (activeOrder.value?.id === id) activeOrder.value = { ...activeOrder.value, status }
+async function updateStatus(order: Order, status: OrderStatus) {
+  updating.value = true
+  try {
+    const res = await ordersApi.update(order.id, { status })
+    if (drawer.value?.id === order.id) drawer.value = res.data
+    await load()
+    showToast(lang.value === 'tk' ? 'Ýagdaý täzelendi' : 'Статус обновлён')
+  }  catch (err: unknown) {
+  showToast((err as any)?.response?.data?.message ?? 'Error', 'error')
+  } finally { updating.value = false }
 }
 
-// ── Delete ────────────────────────────────────────────────────────────────────
-const deleteTarget  = ref<OrderItem | null>(null)
-const deleteConfirm = ref(false)
-
-function askDelete(order: OrderItem) {
-  deleteTarget.value  = order
-  deleteConfirm.value = true
-}
-function confirmDelete() {
-  if (deleteTarget.value) {
-    orders.value = orders.value.filter(o => o.id !== deleteTarget.value!.id)
-    if (activeOrder.value?.id === deleteTarget.value.id) closeDrawer()
-  }
-  deleteTarget.value  = null
-  deleteConfirm.value = false
+async function confirmDelete() {
+  if (!deleteTarget.value) return
+  deleting.value = true
+  try {
+    await ordersApi.remove(deleteTarget.value.id)
+    showToast(lang.value === 'tk' ? 'Sargyt pozuldy' : 'Заказ удалён')
+    deleteTarget.value = null
+    drawer.value = null
+    await load()
+  } catch (e: any) {
+    showToast(e.response?.data?.message ?? 'Error', 'error')
+  } finally { deleting.value = false }
 }
 
-const statusOptions: Array<OrderStatus | 'all'> = ['all', 'pending', 'processing', 'shipped', 'delivered', 'cancelled']
-const statusLabel: Record<OrderStatus | 'all', Record<'tk' | 'ru', string>> = {
-  all:        { tk: 'Hemmesi',     ru: 'Все'          },
-  pending:    { tk: 'Garaşylýar', ru: 'Ожидает'      },
-  processing: { tk: 'Işlenýär',   ru: 'В обработке'  },
-  shipped:    { tk: 'Iberildi',   ru: 'Отправлен'    },
-  delivered:  { tk: 'Eltildi',    ru: 'Доставлен'    },
-  cancelled:  { tk: 'Ýatyryldy', ru: 'Отменён'      },
-}
+function fmt(n: number | string) { return Number(n).toFixed(2) }
+function fmtDate(d: string) { return new Date(d).toLocaleDateString(lang.value === 'tk' ? 'tk-TM' : 'ru-RU', { day: '2-digit', month: 'short', year: 'numeric' }) }
 </script>
 
 <template>
-  <div class="view">
+  <div class="orders">
 
-    <!-- Summary -->
-    <div class="summary">
-      <div class="s-card">
-        <div class="s-icon" style="background:rgba(232,160,32,.1);color:var(--gold)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-        </div>
-        <div><p class="s-label">{{ L.total }}</p><p class="s-value">{{ totalCount }}</p></div>
-      </div>
-      <div class="s-card">
-        <div class="s-icon" style="background:rgba(245,158,11,.1);color:#F59E0B">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        </div>
-        <div><p class="s-label">{{ L.pending }}</p><p class="s-value" style="color:#F59E0B">{{ pendingCount }}</p></div>
-      </div>
-      <div class="s-card">
-        <div class="s-icon" style="background:rgba(59,130,246,.1);color:#3B82F6">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-        </div>
-        <div><p class="s-label">{{ L.processing }}</p><p class="s-value" style="color:#3B82F6">{{ processingCount }}</p></div>
-      </div>
-      <div class="s-card">
-        <div class="s-icon" style="background:rgba(34,197,94,.1);color:#22C55E">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-        </div>
-        <div><p class="s-label">{{ L.delivered }}</p><p class="s-value" style="color:#22C55E">{{ deliveredCount }}</p></div>
+    <Transition name="toast">
+      <div v-if="toast" :class="['toast', toast.type]">{{ toast.msg }}</div>
+    </Transition>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div v-for="s in stats" :key="s.label" class="stat-card">
+        <div class="stat-value">{{ s.value }}</div>
+        <div class="stat-label">{{ s.label }}</div>
       </div>
     </div>
 
     <!-- Toolbar -->
     <div class="toolbar">
-      <label class="search-wrap">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-        <input v-model="search" :placeholder="L.search" />
-      </label>
-
       <div class="filter-tabs">
-        <button
-          v-for="s in statusOptions" :key="s"
-          :class="['tab', { active: statusFilter === s }]"
-          @click="statusFilter = s"
-        >
-          {{ statusLabel[s][lang] }}
-        </button>
+        <button v-for="f in filters" :key="f.key" :class="['ftab', { active: filter === f.key }]" @click="filter = f.key as any; page = 1">{{ f.label }}</button>
+      </div>
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input v-model="search" class="search" :placeholder="lang === 'tk' ? 'Gözle...' : 'Поиск...'" />
       </div>
     </div>
 
     <!-- Table -->
-    <OrderTable
-      :orders="filtered"
-      :lang="lang"
-      @view="openDrawer"
-      @delete="askDelete"
-    />
-
-    <!-- Showing count -->
-    <p class="showing">{{ L.showing }} {{ filtered.length }} {{ L.of }} {{ totalCount }}</p>
-
-    <!-- Order detail drawer -->
-    <OrderDrawer
-      :open="drawerOpen"
-      :order="activeOrder"
-      :lang="lang"
-      @close="closeDrawer"
-      @status-change="onStatusChange"
-    />
-
-    <!-- Delete confirm -->
-    <Teleport to="body">
-      <Transition name="modal">
-        <div v-if="deleteConfirm" class="overlay" @click.self="deleteConfirm = false">
-          <div class="confirm-box">
-            <div class="confirm-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                <path d="M10 11v6M14 11v6"/>
-                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-              </svg>
+    <div class="card">
+      <div v-if="loading" class="table-loading"><div class="spinner"></div></div>
+      <template v-else>
+        <div class="table">
+          <div class="t-head">
+            <span>{{ lang === 'tk' ? 'Sargyt' : 'Заказ' }}</span>
+            <span>{{ lang === 'tk' ? 'Müşderi' : 'Клиент' }}</span>
+            <span>{{ lang === 'tk' ? 'Sarylar' : 'Позиции' }}</span>
+            <span>{{ lang === 'tk' ? 'Jemi' : 'Сумма' }}</span>
+            <span>{{ lang === 'tk' ? 'Ýagdaý' : 'Статус' }}</span>
+            <span>{{ lang === 'tk' ? 'Sene' : 'Дата' }}</span>
+            <span></span>
+          </div>
+          <div v-for="o in orders" :key="o.id" class="t-row" @click="drawer = o">
+            <span class="order-id">#{{ o.id.slice(-6).toUpperCase() }}</span>
+            <div class="cust-cell">
+              <div class="cust-name">{{ o.customer?.name }}</div>
+              <div class="cust-email">{{ o.customer?.email }}</div>
             </div>
-            <p class="confirm-text">{{ L.deleteConfirm }}</p>
-            <p class="confirm-name">{{ deleteTarget?.id }} — {{ deleteTarget?.customer }}</p>
-            <div class="confirm-actions">
-              <button class="btn-cancel" @click="deleteConfirm = false">
-                {{ lang === 'tk' ? 'Ýok' : 'Отмена' }}
+            <span class="cell-muted">{{ o.lines?.length ?? 0 }}</span>
+            <span class="cell-bold">${{ fmt(o.total) }}</span>
+            <span :class="['badge', o.status.toLowerCase()]">{{ STATUS_LABELS[o.status]?.[lang] }}</span>
+            <span class="cell-muted">{{ fmtDate(o.createdAt) }}</span>
+            <div class="actions" @click.stop>
+              <button class="act-btn del" @click="deleteTarget = o">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
               </button>
-              <button class="btn-delete" @click="confirmDelete">
-                {{ lang === 'tk' ? 'Hawa, poz' : 'Да, удалить' }}
+            </div>
+          </div>
+          <div v-if="!orders.length" class="empty">{{ lang === 'tk' ? 'Sargyt tapylmady' : 'Заказы не найдены' }}</div>
+        </div>
+      </template>
+    </div>
+
+    <!-- Drawer -->
+    <Transition name="drawer">
+      <div v-if="drawer" class="drawer-overlay" @click.self="drawer = null">
+        <div class="drawer">
+          <div class="drawer-head">
+            <div>
+              <h3>#{{ drawer.id.slice(-6).toUpperCase() }}</h3>
+              <p>{{ fmtDate(drawer.createdAt) }}</p>
+            </div>
+            <button class="close-btn" @click="drawer = null">×</button>
+          </div>
+
+          <!-- Customer -->
+          <div class="drawer-section">
+            <div class="section-title">{{ lang === 'tk' ? 'Müşderi' : 'Клиент' }}</div>
+            <div class="info-card">
+              <div class="info-row"><span>{{ lang === 'tk' ? 'Ady' : 'Имя' }}</span><strong>{{ drawer.customer?.name }}</strong></div>
+              <div class="info-row"><span>{{ lang === 'tk' ? 'E-poçta' : 'Email' }}</span><strong>{{ drawer.customer?.email }}</strong></div>
+              <div class="info-row"><span>{{ lang === 'tk' ? 'Telefon' : 'Телефон' }}</span><strong>{{ drawer.customer?.phone }}</strong></div>
+              <div class="info-row"><span>{{ lang === 'tk' ? 'Salgy' : 'Адрес' }}</span><strong>{{ drawer.customer?.address }}</strong></div>
+            </div>
+          </div>
+
+          <!-- Lines -->
+          <div class="drawer-section">
+            <div class="section-title">{{ lang === 'tk' ? 'Önümler' : 'Товары' }}</div>
+            <div class="lines">
+              <div v-for="l in drawer.lines" :key="l.id" class="line-row">
+                <span class="line-img">{{ l.product?.image ?? '📦' }}</span>
+                <div class="line-info">
+                  <div class="line-name">{{ lang === 'tk' ? l.product?.nameTk : l.product?.nameRu }}</div>
+                  <div class="line-qty">× {{ l.qty }}</div>
+                </div>
+                <span class="line-price">${{ fmt(l.unitPrice * l.qty) }}</span>
+              </div>
+            </div>
+            <div class="total-row">
+              <span>{{ lang === 'tk' ? 'Jemi' : 'Итого' }}</span>
+              <strong>${{ fmt(drawer.total) }}</strong>
+            </div>
+          </div>
+
+          <!-- Note -->
+          <div v-if="drawer.note" class="drawer-section">
+            <div class="section-title">{{ lang === 'tk' ? 'Bellik' : 'Примечание' }}</div>
+            <div class="note">{{ drawer.note }}</div>
+          </div>
+
+          <!-- Status change -->
+          <div class="drawer-section">
+            <div class="section-title">{{ lang === 'tk' ? 'Ýagdaýy üýtget' : 'Изменить статус' }}</div>
+            <div class="status-btns">
+              <button v-for="s in STATUS_OPTIONS" :key="s"
+                :class="['status-btn', s.toLowerCase(), { active: drawer.status === s }]"
+                :disabled="updating || drawer.status === s"
+                @click="updateStatus(drawer, s)">
+                {{ STATUS_LABELS[s][lang] }}
               </button>
             </div>
           </div>
         </div>
-      </Transition>
-    </Teleport>
+      </div>
+    </Transition>
 
+    <!-- Delete confirm -->
+    <Transition name="modal">
+      <div v-if="deleteTarget" class="modal-overlay" @click.self="deleteTarget = null">
+        <div class="modal">
+          <div class="modal-head">
+            <h3>{{ lang === 'tk' ? 'Pozmagy tassykla' : 'Подтвердить удаление' }}</h3>
+            <button class="close-btn" @click="deleteTarget = null">×</button>
+          </div>
+          <div class="modal-body"><p>{{ lang === 'tk' ? `"#${deleteTarget?.id.slice(-6).toUpperCase()}" sargydyny pozmak isleýärsiňizmi?` : `Удалить заказ "#${deleteTarget?.id.slice(-6).toUpperCase()}"?` }}</p></div>
+          <div class="modal-foot">
+            <button class="cancel-btn" @click="deleteTarget = null">{{ lang === 'tk' ? 'Ýok' : 'Нет' }}</button>
+            <button class="del-confirm-btn" :disabled="deleting" @click="confirmDelete">{{ deleting ? '...' : (lang === 'tk' ? 'Hawa, poz' : 'Да, удалить') }}</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
-.view { display: flex; flex-direction: column; gap: 18px; }
+.orders { display: flex; flex-direction: column; gap: 16px; }
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.stat-card { background: var(--white); border-radius: var(--radius-lg); padding: 16px 20px; border: 1.5px solid var(--border-light); box-shadow: var(--shadow-sm); }
+.stat-value { font-size: 24px; font-weight: 800; color: var(--dark); font-family: var(--font-display); }
+.stat-label { font-size: 12px; color: var(--subtle); margin-top: 4px; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.filter-tabs { display: flex; gap: 4px; background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius-md); padding: 4px; flex-wrap: wrap; }
+.ftab { padding: 5px 12px; border-radius: var(--radius-sm); border: none; background: transparent; font-size: 12px; font-weight: 600; color: var(--subtle); cursor: pointer; font-family: var(--font-body); transition: all .15s; }
+.ftab.active { background: var(--dark); color: var(--white); }
+.search-wrap { position: relative; }
+.search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--subtle); }
+.search { height: 38px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--white); padding: 0 12px 0 32px; font-size: 13px; font-family: var(--font-body); color: var(--dark); outline: none; width: 200px; }
+.search:focus { border-color: var(--gold); }
+.card { background: var(--white); border-radius: var(--radius-lg); border: 1.5px solid var(--border-light); overflow: hidden; box-shadow: var(--shadow-sm); }
+.table-loading { display: flex; justify-content: center; padding: 60px; }
+.spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.t-head { display: grid; grid-template-columns: 90px 1.5fr 60px 80px 120px 100px 50px; gap: 8px; padding: 10px 20px; background: var(--surface); font-size: 11px; font-weight: 700; color: var(--subtle); text-transform: uppercase; letter-spacing: .04em; }
+.t-row { display: grid; grid-template-columns: 90px 1.5fr 60px 80px 120px 100px 50px; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border-light); align-items: center; cursor: pointer; transition: background .12s; }
+.t-row:hover { background: var(--surface); }
+.order-id { font-size: 12px; font-weight: 700; color: var(--gold); font-family: monospace; }
+.cust-name  { font-size: 13px; font-weight: 700; color: var(--dark); }
+.cust-email { font-size: 11px; color: var(--subtle); margin-top: 1px; }
+.cell-muted { font-size: 13px; color: var(--subtle); }
+.cell-bold  { font-size: 13px; font-weight: 700; color: var(--dark); }
+.badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: var(--radius-pill); font-size: 11px; font-weight: 700; }
+.badge.pending    { background: #FEF3C7; color: #92400E; }
+.badge.processing { background: #DBEAFE; color: #1E40AF; }
+.badge.shipped    { background: #EDE9FE; color: #5B21B6; }
+.badge.delivered  { background: #DCFCE7; color: #14532D; }
+.badge.cancelled  { background: #FEE2E2; color: #991B1B; }
+.actions { display: flex; gap: 6px; }
+.act-btn { width: 30px; height: 30px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--surface); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted); transition: all .15s; }
+.act-btn svg { width: 13px; height: 13px; }
+.act-btn.del:hover { border-color: var(--error); color: var(--error); background: var(--error-bg); }
+.empty { padding: 40px; text-align: center; color: var(--subtle); font-size: 14px; }
 
-/* Summary */
-.summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-.s-card {
-  background: var(--white); border-radius: var(--radius-xl);
-  border: 1.5px solid var(--border-light); box-shadow: var(--shadow-sm);
-  padding: 16px 20px; display: flex; align-items: center; gap: 14px;
-}
-.s-icon { width: 44px; height: 44px; border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.s-icon svg { width: 20px; height: 20px; }
-.s-label { font-size: 11px; font-weight: 600; color: var(--subtle); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
-.s-value { font-family: var(--font-display); font-size: 26px; font-weight: 700; color: var(--dark); line-height: 1; }
+/* Drawer */
+.drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 900; }
+.drawer { position: fixed; top: 0; right: 0; width: 420px; height: 100vh; background: var(--white); box-shadow: -8px 0 40px rgba(0,0,0,.15); overflow-y: auto; display: flex; flex-direction: column; }
+.drawer-head { display: flex; align-items: flex-start; justify-content: space-between; padding: 24px; border-bottom: 1px solid var(--border-light); }
+.drawer-head h3 { font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--dark); }
+.drawer-head p  { font-size: 12px; color: var(--subtle); margin-top: 3px; }
+.close-btn { width: 30px; height: 30px; border-radius: 50%; border: none; background: var(--surface); font-size: 18px; cursor: pointer; color: var(--muted); }
+.drawer-section { padding: 16px 24px; border-bottom: 1px solid var(--border-light); }
+.section-title { font-size: 11px; font-weight: 700; color: var(--subtle); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+.info-card { background: var(--surface); border-radius: var(--radius-md); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.info-row { display: flex; justify-content: space-between; font-size: 13px; }
+.info-row span { color: var(--subtle); }
+.info-row strong { color: var(--dark); }
+.lines { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.line-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--radius-md); background: var(--surface); }
+.line-img  { font-size: 22px; }
+.line-info { flex: 1; }
+.line-name { font-size: 13px; font-weight: 700; color: var(--dark); }
+.line-qty  { font-size: 12px; color: var(--subtle); margin-top: 2px; }
+.line-price { font-size: 14px; font-weight: 700; color: var(--dark); }
+.total-row { display: flex; justify-content: space-between; padding: 10px 0 0; font-size: 14px; border-top: 1px solid var(--border-light); }
+.total-row strong { font-size: 16px; font-weight: 800; color: var(--dark); }
+.note { font-size: 13px; color: var(--dark); background: var(--surface); border-radius: var(--radius-md); padding: 10px 12px; line-height: 1.5; }
+.status-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.status-btn { padding: 6px 14px; border-radius: var(--radius-pill); border: 1.5px solid var(--border); background: var(--surface); font-size: 12px; font-weight: 700; cursor: pointer; font-family: var(--font-body); transition: all .15s; color: var(--muted); }
+.status-btn:disabled { cursor: not-allowed; }
+.status-btn.active { cursor: default; }
+.status-btn.pending.active    { background: #FEF3C7; border-color: #F59E0B; color: #92400E; }
+.status-btn.processing.active { background: #DBEAFE; border-color: #3B82F6; color: #1E40AF; }
+.status-btn.shipped.active    { background: #EDE9FE; border-color: #8B5CF6; color: #5B21B6; }
+.status-btn.delivered.active  { background: #DCFCE7; border-color: #22C55E; color: #14532D; }
+.status-btn.cancelled.active  { background: #FEE2E2; border-color: #EF4444; color: #991B1B; }
+.status-btn:not(.active):hover { border-color: var(--gold); color: var(--gold); background: var(--gold-glow); }
 
-/* Toolbar */
-.toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.search-wrap {
-  display: flex; align-items: center; gap: 8px;
-  background: var(--white); border: 1.5px solid var(--border);
-  border-radius: var(--radius-md); padding: 0 12px;
-  height: 38px; min-width: 240px; cursor: text;
-  transition: border-color .15s, box-shadow .15s;
-}
-.search-wrap:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-glow); }
-.search-wrap svg { width: 14px; height: 14px; color: var(--subtle); flex-shrink: 0; }
-.search-wrap input { flex: 1; border: none; background: transparent; outline: none; font-size: 13px; font-family: var(--font-body); color: var(--dark); }
-.search-wrap input::placeholder { color: var(--subtle); }
+/* Modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+.modal { background: var(--white); border-radius: var(--radius-xl); width: 100%; max-width: 380px; box-shadow: 0 24px 64px rgba(0,0,0,.3); }
+.modal-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 0; }
+.modal-head h3 { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--dark); }
+.modal-body { padding: 16px 24px; }
+.modal-body p { font-size: 14px; color: var(--dark); }
+.modal-foot { display: flex; gap: 10px; justify-content: flex-end; padding: 0 24px 20px; }
+.cancel-btn { height: 38px; padding: 0 16px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; font-family: var(--font-body); }
+.del-confirm-btn { height: 38px; padding: 0 20px; border-radius: var(--radius-md); border: none; background: var(--error); font-size: 13px; font-weight: 700; color: var(--white); cursor: pointer; font-family: var(--font-body); }
 
-.filter-tabs { display: flex; gap: 4px; background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius-md); padding: 3px; flex-wrap: wrap; }
-.tab { padding: 4px 11px; border-radius: var(--radius-sm); border: none; background: transparent; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; transition: all .15s; font-family: var(--font-body); white-space: nowrap; }
-.tab:hover  { background: var(--surface); color: var(--dark); }
-.tab.active { background: var(--dark); color: var(--white); }
-
-.showing { font-size: 12px; color: var(--subtle); font-weight: 500; text-align: right; }
-
-/* Delete confirm */
-.overlay { position: fixed; inset: 0; z-index: 500; background: rgba(15,17,23,.55); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 20px; }
-.confirm-box { background: var(--white); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); padding: 28px; width: 100%; max-width: 360px; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
-.confirm-icon { width: 52px; height: 52px; border-radius: 50%; background: var(--error-bg); display: flex; align-items: center; justify-content: center; color: var(--error); }
-.confirm-icon svg { width: 24px; height: 24px; }
-.confirm-text { font-size: 15px; font-weight: 700; color: var(--dark); }
-.confirm-name { font-size: 13px; color: var(--muted); background: var(--surface); padding: 6px 14px; border-radius: var(--radius-md); }
-.confirm-actions { display: flex; gap: 10px; margin-top: 4px; }
-.btn-cancel { height: 38px; padding: 0 18px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--surface); font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; font-family: var(--font-body); transition: all .15s; }
-.btn-cancel:hover { border-color: var(--dark); color: var(--dark); }
-.btn-delete { height: 38px; padding: 0 18px; border-radius: var(--radius-md); border: none; background: var(--error); font-size: 13px; font-weight: 800; color: white; cursor: pointer; font-family: var(--font-body); transition: background .15s; }
-.btn-delete:hover { background: #DC2626; }
-
+/* Toast */
+.toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: var(--radius-md); font-size: 14px; font-weight: 700; z-index: 9999; box-shadow: 0 8px 24px rgba(0,0,0,.15); }
+.toast.success { background: #22C55E; color: var(--white); }
+.toast.error   { background: var(--error); color: var(--white); }
+.toast-enter-active, .toast-leave-active { transition: all .25s; }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(12px); }
+.drawer-enter-active, .drawer-leave-active { transition: opacity .2s; }
+.drawer-enter-active .drawer, .drawer-leave-active .drawer { transition: transform .25s cubic-bezier(.4,0,.2,1); }
+.drawer-enter-from .drawer, .drawer-leave-to .drawer { transform: translateX(100%); }
+.drawer-enter-from, .drawer-leave-to { opacity: 0; }
 .modal-enter-active, .modal-leave-active { transition: opacity .2s; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
-
-@media (max-width: 900px) { .summary { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 500px)  { .summary { grid-template-columns: 1fr 1fr; } }
 </style>
