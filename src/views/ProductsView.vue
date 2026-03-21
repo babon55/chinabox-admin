@@ -7,8 +7,8 @@ const ui   = useUiStore()
 const lang = computed(() => ui.lang)
 
 // ── Delivery rate constants ───────────────────────────────────────────────────
-const FAST_RATE   = 11  // $ per kg — 7-15 days
-const SIMPLE_RATE = 7   // $ per kg — 15-30 days
+const FAST_RATE   = 7  // $ per kg — 7-15 days
+const SIMPLE_RATE = 3   // $ per kg — 15-30 days
 
 function calcDelivery(weightG: number | null | undefined, rate: number) {
   if (!weightG) return 0

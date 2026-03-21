@@ -1,21 +1,24 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useUiStore } from '@/stores/ui'
 import { ordersApi, type Order, type OrderStatus } from '@/api/orders'
+import type { Lang } from '@/types'
+import CreateOrderModal from '@/components/CreateOrderModal.vue'
 
 const ui   = useUiStore()
-const lang = computed(() => ui.lang)
+const lang = computed((): Lang => ui.lang)
 
-const orders  = ref<Order[]>([])
-const total   = ref(0)
-const page    = ref(1)
-const loading = ref(true)
-const search  = ref('')
-const filter  = ref<'ALL' | OrderStatus>('ALL')
-const drawer  = ref<Order | null>(null)
-const updating = ref(false)
+const orders       = ref<Order[]>([])
+const total        = ref(0)
+const page         = ref(1)
+const loading      = ref(true)
+const search       = ref('')
+const filter       = ref<'ALL' | OrderStatus>('ALL')
+const drawer       = ref<Order | null>(null)
+const updating     = ref(false)
 const deleteTarget = ref<Order | null>(null)
 const deleting     = ref(false)
+const createOpen   = ref(false)
 
 const toast = ref<{ msg: string; type: 'success' | 'error' } | null>(null)
 function showToast(msg: string, type: 'success' | 'error' = 'success') {
@@ -32,19 +35,36 @@ async function load() {
   } finally { loading.value = false }
 }
 
-onMounted(load)
+// ── Polling + tab-focus refresh ───────────────────────────────────────────────
+let pollTimer: ReturnType<typeof setInterval>
+
+function onVisibilityChange() {
+  if (document.visibilityState === 'visible') load()
+}
+
+onMounted(() => {
+  load()
+  pollTimer = setInterval(load, 30_000)                               // re-fetch every 30s
+  document.addEventListener('visibilitychange', onVisibilityChange)  // re-fetch on tab focus
+})
+
+onUnmounted(() => {
+  clearInterval(pollTimer)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+})
+
 watch([filter, page], load)
 let st: ReturnType<typeof setTimeout>
 watch(search, () => { clearTimeout(st); st = setTimeout(() => { page.value = 1; load() }, 400) })
 
-const STATUS_LABELS: Record<string, Record<string, string>> = {
+const STATUS_LABELS: Record<OrderStatus, Record<Lang, string>> = {
   PENDING:    { tk: 'Garaşylýar',  ru: 'Ожидание'  },
   PROCESSING: { tk: 'Işlenilýär',  ru: 'В работе'  },
   SHIPPED:    { tk: 'Ugradyldy',   ru: 'Отправлен' },
   DELIVERED:  { tk: 'Gowşuryldy', ru: 'Доставлен' },
   CANCELLED:  { tk: 'Ýatyryldy',  ru: 'Отменён'   },
 }
-const STATUS_OPTIONS: OrderStatus[] = ['PENDING','PROCESSING','SHIPPED','DELIVERED','CANCELLED']
+const STATUS_OPTIONS: OrderStatus[] = ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']
 
 const filters = computed(() => [
   { key: 'ALL', label: lang.value === 'tk' ? 'Hemmesi' : 'Все' },
@@ -52,13 +72,13 @@ const filters = computed(() => [
 ])
 
 const stats = computed(() => {
-  const counts = STATUS_OPTIONS.reduce((a, s) => { a[s] = orders.value.filter(o => o.status === s).length; return a }, {} as Record<string, number>)
+  const counts = STATUS_OPTIONS.reduce((a, s) => { a[s] = orders.value.filter(o => o.status === s).length; return a }, {} as Record<OrderStatus, number>)
   const l = lang.value
   return [
-    { label: l === 'tk' ? 'Jemi' : 'Всего',         value: total.value },
-    { label: STATUS_LABELS.PENDING[l],               value: counts.PENDING    ?? 0 },
-    { label: STATUS_LABELS.PROCESSING[l],            value: counts.PROCESSING ?? 0 },
-    { label: STATUS_LABELS.DELIVERED[l],             value: counts.DELIVERED  ?? 0 },
+    { label: l === 'tk' ? 'Jemi' : 'Всего',    value: total.value            },
+    { label: STATUS_LABELS.PENDING[l],           value: counts.PENDING    ?? 0 },
+    { label: STATUS_LABELS.PROCESSING[l],        value: counts.PROCESSING ?? 0 },
+    { label: STATUS_LABELS.DELIVERED[l],         value: counts.DELIVERED  ?? 0 },
   ]
 })
 
@@ -69,8 +89,8 @@ async function updateStatus(order: Order, status: OrderStatus) {
     if (drawer.value?.id === order.id) drawer.value = res.data
     await load()
     showToast(lang.value === 'tk' ? 'Ýagdaý täzelendi' : 'Статус обновлён')
-  }  catch (err: unknown) {
-  showToast((err as any)?.response?.data?.message ?? 'Error', 'error')
+  } catch (err: unknown) {
+    showToast((err as any)?.response?.data?.message ?? 'Error', 'error')
   } finally { updating.value = false }
 }
 
@@ -116,6 +136,26 @@ function fmtDate(d: string) { return new Date(d).toLocaleDateString(lang.value =
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input v-model="search" class="search" :placeholder="lang === 'tk' ? 'Gözle...' : 'Поиск...'" />
       </div>
+
+      <!-- Manual refresh button -->
+      <button
+        class="refresh-btn"
+        :disabled="loading"
+        :title="lang === 'tk' ? 'Täzele' : 'Обновить'"
+        @click="load()"
+      >
+        <svg
+          viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          :style="loading ? 'animation: spin .7s linear infinite' : ''"
+        >
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+      </button>
+
+      <button class="new-order-btn" @click="createOpen = true">
+        + {{ lang === 'tk' ? 'Sargyt döret' : 'Новый заказ' }}
+      </button>
     </div>
 
     <!-- Table -->
@@ -233,6 +273,13 @@ function fmtDate(d: string) { return new Date(d).toLocaleDateString(lang.value =
         </div>
       </div>
     </Transition>
+
+    <CreateOrderModal
+      :open="createOpen"
+      :lang="lang"
+      @close="createOpen = false"
+      @created="load()"
+    />
   </div>
 </template>
 
@@ -250,6 +297,19 @@ function fmtDate(d: string) { return new Date(d).toLocaleDateString(lang.value =
 .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--subtle); }
 .search { height: 38px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--white); padding: 0 12px 0 32px; font-size: 13px; font-family: var(--font-body); color: var(--dark); outline: none; width: 200px; }
 .search:focus { border-color: var(--gold); }
+
+/* Refresh button */
+.refresh-btn {
+  width: 38px; height: 38px;
+  border-radius: var(--radius-md); border: 1.5px solid var(--border);
+  background: var(--white); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted); transition: all .15s; flex-shrink: 0;
+}
+.refresh-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+.refresh-btn:disabled { opacity: .5; cursor: not-allowed; }
+.refresh-btn svg { width: 15px; height: 15px; }
+
 .card { background: var(--white); border-radius: var(--radius-lg); border: 1.5px solid var(--border-light); overflow: hidden; box-shadow: var(--shadow-sm); }
 .table-loading { display: flex; justify-content: center; padding: 60px; }
 .spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin .7s linear infinite; }
@@ -331,4 +391,13 @@ function fmtDate(d: string) { return new Date(d).toLocaleDateString(lang.value =
 .drawer-enter-from, .drawer-leave-to { opacity: 0; }
 .modal-enter-active, .modal-leave-active { transition: opacity .2s; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
+.new-order-btn {
+  height: 38px; padding: 0 18px;
+  border-radius: var(--radius-md); border: none;
+  background: var(--gold); color: var(--white);
+  font-size: 13px; font-weight: 700;
+  cursor: pointer; font-family: var(--font-body);
+  white-space: nowrap; transition: background .15s;
+}
+.new-order-btn:hover { background: var(--gold-dark); }
 </style>

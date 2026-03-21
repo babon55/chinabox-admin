@@ -25,7 +25,7 @@ export interface ChartPoint {
   value: number
 }
 
-export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
+export type OrderStatus = 'PENDING' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED'
 
 // Slim shape used on Dashboard
 export interface Order {
@@ -70,7 +70,7 @@ export interface Product {
 }
 
 // ─── Products view ────────────────────────────────────────────────────────────
-export type ProductStatus = 'active' | 'draft' | 'archived'
+export type ProductStatus = 'ACTIVE' | 'DRAFT' | 'ARCHIVED'
 
 export interface ProductItem {
   id:         string
@@ -88,7 +88,7 @@ export interface ProductItem {
 export type ProductForm = Omit<ProductItem, 'id' | 'sold' | 'createdAt'>
 
 // ─── Customers view ───────────────────────────────────────────────────────────
-export type CustomerStatus = 'active' | 'blocked'
+export type CustomerStatus = 'ACTIVE' | 'BLOCKED'
 
 export interface CustomerOrder {
   id:     string

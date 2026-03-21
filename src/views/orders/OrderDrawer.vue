@@ -14,14 +14,14 @@ const emit = defineEmits<{
 }>()
 
 const STATUS_CONFIG: Record<OrderStatus, { color: string; bg: string; tk: string; ru: string; icon: string }> = {
-  pending:    { color: '#F59E0B', bg: 'rgba(245,158,11,.12)',  tk: 'Garaşylýar', ru: 'Ожидает',     icon: 'clock'  },
-  processing: { color: '#3B82F6', bg: 'rgba(59,130,246,.12)',  tk: 'Işlenýär',   ru: 'В обработке', icon: 'gear'   },
-  shipped:    { color: '#8B5CF6', bg: 'rgba(139,92,246,.12)',  tk: 'Iberildi',   ru: 'Отправлен',   icon: 'truck'  },
-  delivered:  { color: '#22C55E', bg: 'rgba(34,197,94,.12)',   tk: 'Eltildi',    ru: 'Доставлен',   icon: 'check'  },
-  cancelled:  { color: '#EF4444', bg: 'rgba(239,68,68,.12)',   tk: 'Ýatyryldy', ru: 'Отменён',     icon: 'cross'  },
+  PENDING:    { color: '#F59E0B', bg: 'rgba(245,158,11,.12)',  tk: 'Garaşylýar', ru: 'Ожидает',     icon: 'clock'  },
+  PROCESSING: { color: '#3B82F6', bg: 'rgba(59,130,246,.12)',  tk: 'Işlenýär',   ru: 'В обработке', icon: 'gear'   },
+  SHIPPED:    { color: '#8B5CF6', bg: 'rgba(139,92,246,.12)',  tk: 'Iberildi',   ru: 'Отправлен',   icon: 'truck'  },
+  DELIVERED:  { color: '#22C55E', bg: 'rgba(34,197,94,.12)',   tk: 'Eltildi',    ru: 'Доставлен',   icon: 'check'  },
+  CANCELLED:  { color: '#EF4444', bg: 'rgba(239,68,68,.12)',   tk: 'Ýatyryldy', ru: 'Отменён',     icon: 'cross'  },
 }
 
-const statuses: OrderStatus[] = ['pending', 'processing', 'shipped', 'delivered', 'cancelled']
+const statuses: OrderStatus[] = ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']
 
 const L = computed(() => props.lang === 'tk' ? {
   title:    'Sargyt maglumaty',
