@@ -44,6 +44,7 @@ export interface OrderLine {
   image:       string
   qty:         number
   unitPrice:   number
+  options?:    Record<string, string>  // optionId → selected value
 }
 
 export interface OrderItem {

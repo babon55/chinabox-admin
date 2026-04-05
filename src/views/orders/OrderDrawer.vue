@@ -139,6 +139,7 @@ const shipping = computed(() => subtotal.value >= 50 ? 0 : 4.99)
                 <div class="line-thumb">{{ line.image }}</div>
                 <div class="line-info">
                   <p class="line-name">{{ line.name[lang] }}</p>
+                  <!-- Options display removed; use OrdersView drawer instead -->
                   <p class="line-meta">{{ line.qty }} {{ L.qty }} × ${{ line.unitPrice.toFixed(2) }}</p>
                 </div>
                 <span class="line-total">${{ (line.qty * line.unitPrice).toFixed(2) }}</span>
@@ -264,6 +265,24 @@ const shipping = computed(() => subtotal.value >= 50 ? 0 : 4.99)
 .line-thumb { width: 38px; height: 38px; border-radius: var(--radius-md); background: var(--white); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; border: 1.5px solid var(--border-light); }
 .line-info { flex: 1; min-width: 0; }
 .line-name { font-size: 13px; font-weight: 600; color: var(--dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+.line-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+.line-opt {
+  font-size: 11px;
+  color: var(--subtle);
+  background: var(--surface);
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-light);
+}
+.line-opt strong {
+  color: var(--gold);
+  font-weight: 700;
+}
 .line-meta { font-size: 11px; color: var(--subtle); }
 .line-total { font-size: 13px; font-weight: 700; color: var(--dark); font-family: var(--font-display); flex-shrink: 0; }
 

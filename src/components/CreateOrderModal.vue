@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { ordersApi }   from '@/api/orders'
-import { customersApi } from '@/api/customers'   // adjust import path if needed
-import { productsApi }  from '@/api/products'    // adjust import path if needed
+import { customersApi } from '@/api/customers'
+import { productsApi }  from '@/api/products'
 import type { Lang }    from '@/types'
+import ProductOptionPicker from './ProductOptionPicker.vue'
 
 const props = defineProps<{ open: boolean; lang: Lang }>()
 const emit  = defineEmits<{
@@ -58,12 +59,17 @@ const products      = ref<any[]>([])
 const custSearch    = ref('')
 const prodSearch    = ref('')
 const selectedCust  = ref<any | null>(null)
-const lines         = ref<{ productId: string; name: string; image: string; qty: number; unitPrice: number }[]>([])
+const lines         = ref<{ productId: string; name: Record<string,string>; image: string; qty: number; unitPrice: number; options?: Record<string,string>; optionsDisplay?: { name: string; value: string }[] }[]>([])
 const note          = ref('')
 const submitting    = ref(false)
 const error         = ref('')
 const custOpen      = ref(false)
 const prodOpen      = ref(false)
+
+// Option picker state: optionId → value
+const pickerProduct = ref<any | null>(null)
+const pickerOptions = ref<Record<string,string>>({})
+const pickerOpen    = ref(false)
 
 // ── Load data ─────────────────────────────────────────────────────────────────
 async function loadCustomers() {
@@ -98,17 +104,56 @@ function selectCustomer(c: any) {
 }
 
 function addLine(p: any) {
+  // If product has options, open picker
+  if (p.options && p.options.length > 0) {
+    pickerProduct.value = p
+    pickerOptions.value = {}
+    pickerOpen.value = true
+    return
+  }
+  // No options, add directly
+  pushLine(p, {})
+}
+
+function pushLine(p: any, opts: Record<string, string>) {
   const existing = lines.value.find(l => l.productId === p.id)
-  if (existing) { existing.qty++; return }
+  if (existing) {
+    existing.qty++
+    return
+  }
+  // Precompute display array for options (for UI only)
+  const optionsDisplay = p.options?.length
+    ? p.options.filter((o: any) => opts[o.id]).map((o: any) => ({
+        name: props.lang === 'tk' ? o.nameTk : o.nameRu,
+        value: opts[o.id]
+      }))
+    : undefined
   lines.value.push({
     productId: p.id,
-    name:      props.lang === 'tk' ? p.nameTk : p.nameRu,
+    name:      { tk: p.nameTk, ru: p.nameRu },
     image:     p.image ?? '📦',
     qty:       1,
     unitPrice: Number(p.price),
+    options:   Object.keys(opts).length ? opts : undefined,
+    optionsDisplay  // UI-only field, ignored by API
   })
   prodOpen.value = false
   prodSearch.value = ''
+}
+
+function onPickerConfirm() {
+  if (pickerProduct.value) {
+    pushLine(pickerProduct.value, pickerOptions.value)
+  }
+  pickerOpen.value = false
+  pickerProduct.value = null
+  pickerOptions.value = {}
+}
+
+function onPickerCancel() {
+  pickerOpen.value = false
+  pickerProduct.value = null
+  pickerOptions.value = {}
 }
 
 function removeLine(idx: number) { lines.value.splice(idx, 1) }
@@ -140,6 +185,7 @@ async function submit() {
         productId: l.productId,
         qty:       l.qty,
         unitPrice: l.unitPrice,
+        options:   l.options,
       })),
       note: note.value || undefined,
     })
@@ -221,7 +267,14 @@ async function submit() {
             <div v-if="lines.length" class="lines">
               <div v-for="(l, i) in lines" :key="l.productId" class="line-row">
                 <span class="line-thumb">{{ l.image }}</span>
-                <p class="line-name">{{ l.name }}</p>
+                <div class="line-info">
+                  <p class="line-name">{{ typeof l.name === 'object' ? (lang === 'tk' ? l.name.tk : l.name.ru) : l.name }}</p>
+                  <div v-if="l.optionsDisplay && l.optionsDisplay.length" class="line-options">
+                    <span v-for="opt in l.optionsDisplay" :key="opt.name" class="line-opt">
+                      {{ opt.name }}: <strong>{{ opt.value }}</strong>
+                    </span>
+                  </div>
+                </div>
                 <div class="line-controls">
                   <button class="qty-btn" @click="l.qty = Math.max(1, l.qty - 1)">−</button>
                   <span class="qty-val">{{ l.qty }}</span>
@@ -265,6 +318,17 @@ async function submit() {
       </div>
     </Transition>
   </Teleport>
+
+  <!-- Product Option Picker Modal -->
+  <ProductOptionPicker
+    v-if="pickerOpen"
+    :product="pickerProduct"
+    :lang="props.lang"
+    :model-value="pickerOptions"
+    @update:model-value="pickerOptions = $event"
+    @confirm="onPickerConfirm"
+    @cancel="onPickerCancel"
+  />
 </template>
 
 <style scoped>
@@ -319,6 +383,24 @@ label { font-size: 11px; font-weight: 700; color: var(--subtle); text-transform:
 .line-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border-light); }
 .line-thumb { font-size: 20px; flex-shrink: 0; }
 .line-name  { flex: 1; font-size: 13px; font-weight: 600; color: var(--dark); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.line-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--subtle);
+}
+.line-opt {
+  background: var(--surface);
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-light);
+}
+.line-opt strong {
+  color: var(--gold);
+  font-weight: 700;
+}
 .line-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .qty-btn { width: 24px; height: 24px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); background: var(--white); font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--dark); }
 .qty-val { font-size: 13px; font-weight: 700; color: var(--dark); min-width: 20px; text-align: center; }

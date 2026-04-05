@@ -9,6 +9,7 @@ export interface OrderLine {
   product:   Product
   qty:       number
   unitPrice: number
+  options?:  Record<string, string>  // optionId → selected value
 }
 
 export interface OrderCustomer {
@@ -49,7 +50,7 @@ export interface OrderQuery {
 export const ordersApi = {
   list:   (params?: OrderQuery)                          => client.get<OrdersResponse>('/orders', { params }),
   get:    (id: string)                                   => client.get<Order>(`/orders/${id}`),
-  create: (data: { customerId: string; lines: { productId: string; qty: number; unitPrice: number }[]; note?: string }) => client.post<Order>('/orders', data),
+  create: (data: { customerId: string; lines: { productId: string; qty: number; unitPrice: number; options?: { name: string; value: string }[] }[]; note?: string }) => client.post<Order>('/orders', data),
   update: (id: string, data: { status: OrderStatus; note?: string }) => client.patch<Order>(`/orders/${id}`, data),
   remove: (id: string)                                   => client.delete(`/orders/${id}`),
 }

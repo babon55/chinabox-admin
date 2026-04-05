@@ -21,6 +21,19 @@ const deleting     = ref(false)
 const createOpen   = ref(false)
 
 const toast = ref<{ msg: string; type: 'success' | 'error' } | null>(null)
+
+function hasLineOptions(line: any): boolean {
+  if (!line.options || !line.product?.options) return false
+  // Debug: check actual keys
+  const keys = Object.keys(line.options)
+  console.log('Line options keys:', keys, 'options:', line.options)
+  return keys.length > 0 && Array.isArray(line.product.options) && line.product.options.length > 0
+}
+
+function getLineOptions(line: any): any[] {
+  if (!line.product?.options || !Array.isArray(line.product.options)) return []
+  return line.product.options.filter((opt: any) => line.options?.[opt.id])
+}
 function showToast(msg: string, type: 'success' | 'error' = 'success') {
   toast.value = { msg, type }
   setTimeout(() => toast.value = null, 2800)
@@ -32,6 +45,9 @@ async function load() {
     const res = await ordersApi.list({ status: filter.value === 'ALL' ? undefined : filter.value, search: search.value || undefined, page: page.value })
     orders.value = res.data.items
     total.value  = res.data.total
+  } catch (err: any) {
+    console.error('Failed to load orders:', err)
+    showToast(err?.response?.data?.message ?? 'Failed to load orders', 'error')
   } finally { loading.value = false }
 }
 
@@ -225,6 +241,11 @@ function fmtDate(d: string) { return new Date(d).toLocaleDateString(lang.value =
                 <div class="line-info">
                   <div class="line-name">{{ lang === 'tk' ? l.product?.nameTk : l.product?.nameRu }}</div>
                   <div class="line-qty">× {{ l.qty }}</div>
+                  <div v-if="hasLineOptions(l)" class="line-options">
+                    <span v-for="opt in getLineOptions(l)" :key="opt.id" class="line-opt">
+                      {{ lang === 'tk' ? opt.nameTk : opt.nameRu }}: <strong>{{ l.options[opt.id] }}</strong>
+                    </span>
+                  </div>
                 </div>
                 <span class="line-price">${{ fmt(l.unitPrice * l.qty) }}</span>
               </div>
@@ -353,6 +374,24 @@ function fmtDate(d: string) { return new Date(d).toLocaleDateString(lang.value =
 .line-info { flex: 1; }
 .line-name { font-size: 13px; font-weight: 700; color: var(--dark); }
 .line-qty  { font-size: 12px; color: var(--subtle); margin-top: 2px; }
+.line-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.line-opt {
+  font-size: 11px;
+  color: var(--subtle);
+  background: var(--surface);
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-light);
+}
+.line-opt strong {
+  color: var(--gold);
+  font-weight: 700;
+}
 .line-price { font-size: 14px; font-weight: 700; color: var(--dark); }
 .total-row { display: flex; justify-content: space-between; padding: 10px 0 0; font-size: 14px; border-top: 1px solid var(--border-light); }
 .total-row strong { font-size: 16px; font-weight: 800; color: var(--dark); }
