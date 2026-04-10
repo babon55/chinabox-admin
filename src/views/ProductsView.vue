@@ -9,14 +9,18 @@ const ui   = useUiStore()
 const lang = computed(() => ui.lang)
 
 // ── Delivery rate constants ───────────────────────────────────────────────────
-const FAST_RATE   = 11 // $ per kg — 7-15 days (match client storefront)
-const SIMPLE_RATE = 7  // $ per kg — 15-30 days
+const FAST_RATE   = 11
+const SIMPLE_RATE = 7
 
+const MARKUP_OPTIONS = [0, 5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100]
+
+function markedUpPrice(price: number | string, markup: number) {
+  return Number(price) * (1 + markup / 100)
+}
 function calcDelivery(weightG: number | null | undefined, rate: number) {
   if (!weightG) return 0
   return (weightG / 1000) * rate
 }
-
 function totalPrice(price: number | string, weightG: number | null | undefined, rate: number) {
   return Number(price) + calcDelivery(weightG, rate)
 }
@@ -36,17 +40,23 @@ const editTarget = ref<Product | null>(null)
 const saving     = ref(false)
 const form       = ref<ProductForm>({
   nameTk: '', nameRu: '', categoryId: '', image: '📦',
-  imageUrl: null, price: 0, weightG: null, stock: 0, status: 'ACTIVE',
-  options: [],
+  imageUrl: null, imageUrls: [], price: 0, weightG: null,
+  stock: 0, status: 'ACTIVE', options: [], markup: 50
 })
 const formErrors = ref<Record<string, string>>({})
 
-// Image upload
-const imageFile      = ref<File | null>(null)
-const imagePreview   = ref<string | null>(null)
+// ── Multi-image upload state ───────────────────────────────────────────────────
+interface ImageEntry {
+  file:      File | null
+  preview:   string
+  url:       string | null
+  publicId:  string | null
+  uploading: boolean
+}
+const imageEntries   = ref<ImageEntry[]>([])
 const imageUploading = ref(false)
-const imagePublicId  = ref<string | null>(null)
 const fileInputRef   = ref<HTMLInputElement | null>(null)
+const MAX_IMAGES     = 8
 
 // Delete
 const deleteTarget = ref<Product | null>(null)
@@ -100,69 +110,82 @@ const filters = computed(() => [
 function fmt(n: number | string | null | undefined) {
   return Number(n ?? 0).toFixed(2)
 }
-
 function fmtWeight(g: number | null | undefined) {
   if (g == null) return '—'
   if (g >= 1000) return (g / 1000).toFixed(2).replace(/\.00$/, '') + ' kg'
   return g + ' g'
 }
 
-// ── Image upload ──────────────────────────────────────────────────────────────
+// ── Multi-image handlers ───────────────────────────────────────────────────────
 function onFileChange(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  if (file.size > 5 * 1024 * 1024) {
-    showToast(lang.value === 'tk' ? 'Faýl 5MB-dan uly bolmaly däldir' : 'Файл не должен превышать 5MB', 'error')
-    return
+  const files = Array.from((e.target as HTMLInputElement).files ?? [])
+  const remaining = MAX_IMAGES - imageEntries.value.length
+  const allowed   = files.slice(0, remaining)
+  for (const file of allowed) {
+    if (file.size > 5 * 1024 * 1024) {
+      showToast(lang.value === 'tk' ? 'Faýl 5MB-dan uly bolmaly däldir' : 'Файл не должен превышать 5MB', 'error')
+      continue
+    }
+    imageEntries.value.push({
+      file, preview: URL.createObjectURL(file),
+      url: null, publicId: null, uploading: false,
+    })
   }
-  imageFile.value    = file
-  imagePreview.value = URL.createObjectURL(file)
+  if (fileInputRef.value) fileInputRef.value.value = ''
 }
 
-function clearImage() {
-  imageFile.value     = null
-  imagePreview.value  = null
-  imagePublicId.value = null
-  form.value.imageUrl = null
-  if (fileInputRef.value) fileInputRef.value.value = ''
+function removeImage(idx: number) {
+  imageEntries.value.splice(idx, 1)
+}
+
+function moveImage(from: number, to: number) {
+  const arr = imageEntries.value
+  const [item] = arr.splice(from, 1)
+  arr.splice(to, 0, item)
 }
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
 const EMOJIS = ['📦','🎧','⌚','🔋','🔊','🎒','💡','🔌','👟','🧴','⌨️','🖥️','📱','🎮','🛒','🎁','💎','👗','🧥','🏠']
 
 function openCreate() {
-  editTarget.value    = null
-  form.value          = {
+  editTarget.value = null
+  form.value = {
     nameTk: '', nameRu: '', categoryId: categories.value[0]?.id ?? '',
-    image: '📦', imageUrl: null, price: 0, weightG: null, stock: 0,
-    status: 'ACTIVE', options: [],
+    image: '📦', imageUrl: null, imageUrls: [],
+    price: 0, weightG: null, stock: 0,
+    status: 'ACTIVE', options: [], markup: 50
   }
-  formErrors.value    = {}
-  imageFile.value     = null
-  imagePreview.value  = null
-  imagePublicId.value = null
-  showModal.value     = true
+  formErrors.value   = {}
+  imageEntries.value = []
+  showModal.value    = true
 }
 
 function openEdit(p: Product) {
-  editTarget.value    = p
-  form.value          = {
+  editTarget.value = p
+  form.value = {
     nameTk:     p.nameTk,
     nameRu:     p.nameRu,
     categoryId: p.categoryId,
     image:      p.image,
     imageUrl:   p.imageUrl ?? null,
+    imageUrls:  [...(p.imageUrls ?? [])],
     price:      Number(p.price),
     weightG:    p.weightG ?? null,
     stock:      p.stock,
     status:     p.status,
     options:    p.options ? JSON.parse(JSON.stringify(p.options)) : [],
+    markup:     p.markup ?? 50,
   }
-  formErrors.value    = {}
-  imageFile.value     = null
-  imagePreview.value  = p.imageUrl ?? null
-  imagePublicId.value = null
-  showModal.value     = true
+  formErrors.value = {}
+  // Pre-populate entries from already-saved URLs
+  imageEntries.value = (p.imageUrls ?? []).map(url => ({
+    file: null, preview: url, url, publicId: null, uploading: false,
+  }))
+  // Fallback: if no imageUrls but has imageUrl, show that
+  if (imageEntries.value.length === 0 && p.imageUrl) {
+    imageEntries.value = [{ file: null, preview: p.imageUrl, url: p.imageUrl, publicId: null, uploading: false }]
+  }
+  showModal.value = true
 }
 
 function validate() {
@@ -172,15 +195,12 @@ function validate() {
   if (!form.value.categoryId) e.categoryId = lang.value === 'tk' ? 'Hökman' : 'Обязательно'
   if (form.value.price <= 0)  e.price      = lang.value === 'tk' ? 'Nol-dan uly bolmaly' : 'Больше нуля'
 
-  // Валидация опций
   const optionErrors: string[] = []
   form.value.options.forEach((opt, idx) => {
-    // Для обязательных опций проверяем заполненность названий
     if (opt.required) {
       if (!opt.nameTk?.trim() || !opt.nameRu?.trim()) {
         optionErrors.push(`#${idx + 1}: ${lang.value === 'tk' ? 'Ady (TK/RU)' : 'Название (TJ/RU)'}`)
       }
-      // Для типа select проверяем, что есть хотя бы одно значение
       if (opt.type === 'select' && (!opt.values || opt.values.length === 0)) {
         optionErrors.push(`#${idx + 1}: ${lang.value === 'tk' ? 'Bahalar' : 'Значения'}`)
       }
@@ -200,22 +220,34 @@ async function save() {
   if (!validate()) return
   saving.value = true
   try {
-    if (imageFile.value) {
+    // Upload any new (file-based) entries
+    const pending = imageEntries.value.filter(e => e.file !== null)
+    if (pending.length > 0) {
       imageUploading.value = true
       try {
-        const res = await uploadApi.uploadImage(imageFile.value)
-        form.value.imageUrl = res.data.url
-        imagePublicId.value = res.data.publicId
+        await Promise.all(pending.map(async entry => {
+          entry.uploading = true
+          const res = await uploadApi.uploadImage(entry.file!)
+          entry.url       = res.data.url
+          entry.publicId  = res.data.publicId
+          entry.uploading = false
+        }))
       } finally {
         imageUploading.value = false
       }
     }
+
+    // Collect ordered URLs
+    const urls = imageEntries.value.map(e => e.url ?? e.preview).filter(Boolean)
+    form.value.imageUrls = urls
+    form.value.imageUrl  = urls[0] ?? null   // keep first as primary for backward compat
+
     if (editTarget.value) {
       await productsApi.update(editTarget.value.id, form.value)
       showToast(lang.value === 'tk' ? 'Önüm täzelendi' : 'Товар обновлён')
     } else {
       await productsApi.create(form.value)
-      showToast(lang.value === 'tk' ? 'Önüm goşuldy' : 'Товар добавлен')
+      showToast(lang.value === 'tk' ? 'Önüm goşuldy' : 'Товар добавlен')
     }
     showModal.value = false
     await load()
@@ -304,6 +336,8 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
             <span>{{ lang === 'tk' ? 'Önüm' : 'Товар' }}</span>
             <span>{{ lang === 'tk' ? 'Kategoriýa' : 'Категория' }}</span>
             <span>{{ lang === 'tk' ? 'Bahasy' : 'Цена' }}</span>
+            <span>{{ lang === 'tk' ? 'Markup' : 'Наценка' }}</span>
+            <span>{{ lang === 'tk' ? 'Müşderi bahasy' : 'Цена клиента' }}</span>
             <span>{{ lang === 'tk' ? 'Agram' : 'Вес' }}</span>
             <span class="fast-col">⚡ {{ lang === 'tk' ? 'Tiz (7-15g)' : 'Быстрая' }}</span>
             <span class="simple-col">🚚 {{ lang === 'tk' ? 'Adaty (15-30g)' : 'Обычная' }}</span>
@@ -314,9 +348,14 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
           </div>
           <div v-for="p in products" :key="p.id" class="t-row">
             <div class="prod-cell">
+              <!-- Thumbnail — shows first image, with count badge if multiple -->
               <div class="prod-thumb">
-                <img v-if="p.imageUrl" :src="p.imageUrl" :alt="p.nameTk" class="prod-img-real" />
+                <img v-if="p.imageUrls?.length" :src="p.imageUrls[0]" :alt="p.nameTk" class="prod-img-real" />
+                <img v-else-if="p.imageUrl"     :src="p.imageUrl"     :alt="p.nameTk" class="prod-img-real" />
                 <span v-else class="prod-img-emoji">{{ p.image }}</span>
+                <span v-if="(p.imageUrls?.length ?? 0) > 1" class="img-count-badge">
+                  +{{ p.imageUrls!.length - 1 }}
+                </span>
               </div>
               <div>
                 <div class="prod-name">{{ lang === 'tk' ? p.nameTk : p.nameRu }}</div>
@@ -325,6 +364,8 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
             </div>
             <span class="cell-muted">{{ lang === 'tk' ? p.category?.nameTk : p.category?.nameRu }}</span>
             <span class="cell-bold">${{ fmt(p.price) }}</span>
+            <span class="markup-badge">+{{ p.markup ?? 50 }}%</span>
+            <span class="cell-client-price">${{ fmt(markedUpPrice(p.price, p.markup ?? 50)) }}</span>
             <span class="cell-muted">{{ fmtWeight(p.weightG) }}</span>
             <span class="cell-fast">${{ fmt(totalPrice(p.price, p.weightG, FAST_RATE)) }}</span>
             <span class="cell-simple">${{ fmt(totalPrice(p.price, p.weightG, SIMPLE_RATE)) }}</span>
@@ -360,30 +401,59 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
           </div>
           <div class="modal-body">
 
-            <!-- Image upload zone -->
+            <!-- ── Multi-image upload ── -->
             <div class="field">
-              <label class="label">{{ lang === 'tk' ? 'Önüm suraty' : 'Фото товара' }}</label>
-              <div class="upload-zone" :class="{ 'has-image': imagePreview }" @click="fileInputRef?.click()">
-                <template v-if="imagePreview">
-                  <img :src="imagePreview" class="preview-img" />
-                  <button class="remove-img" @click.stop="clearImage">×</button>
-                  <div class="preview-overlay"><span>{{ lang === 'tk' ? 'Üýtget' : 'Изменить' }}</span></div>
-                </template>
-                <template v-else>
-                  <div class="upload-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <label class="label">
+                {{ lang === 'tk' ? 'Önüm suratlary' : 'Фото товара' }}
+                <span class="label-count">({{ imageEntries.length }}/{{ MAX_IMAGES }})</span>
+              </label>
+
+              <div class="multi-image-grid">
+                <!-- Existing / pending images -->
+                <div v-for="(entry, idx) in imageEntries" :key="idx" class="img-slot">
+                  <img :src="entry.preview" class="img-slot-thumb" />
+
+                  <!-- Upload spinner overlay -->
+                  <div v-if="entry.uploading" class="img-slot-uploading">
+                    <div class="spinner-sm"></div>
                   </div>
-                  <div class="upload-text">
-                    <span>{{ lang === 'tk' ? 'Surat ýükle' : 'Загрузить фото' }}</span>
-                    <small>JPG, PNG, WebP • Max 5MB</small>
+
+                  <!-- Remove button -->
+                  <button class="img-slot-remove" @click="removeImage(idx)">×</button>
+
+                  <!-- Reorder arrows -->
+                  <div class="img-slot-order">
+                    <button v-if="idx > 0"                         @click="moveImage(idx, idx - 1)">‹</button>
+                    <button v-if="idx < imageEntries.length - 1"   @click="moveImage(idx, idx + 1)">›</button>
                   </div>
-                </template>
+
+                  <!-- Primary badge on first image -->
+                  <div v-if="idx === 0" class="img-slot-primary">
+                    {{ lang === 'tk' ? 'Esasy' : 'Главное' }}
+                  </div>
+                </div>
+
+                <!-- Add more button -->
+                <div v-if="imageEntries.length < MAX_IMAGES" class="img-slot img-slot-add" @click="fileInputRef?.click()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                  <span>{{ lang === 'tk' ? 'Surat goş' : 'Добавить' }}</span>
+                </div>
               </div>
-              <input ref="fileInputRef" type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="file-input" @change="onFileChange" />
+
+              <input
+                ref="fileInputRef"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                multiple
+                class="file-input"
+                @change="onFileChange"
+              />
             </div>
 
-            <!-- Emoji fallback -->
-            <div v-if="!imagePreview" class="field">
+            <!-- Emoji fallback — only show if no images uploaded -->
+            <div v-if="imageEntries.length === 0" class="field">
               <label class="label">{{ lang === 'tk' ? 'Ýa-da emoji saýla' : 'Или выбери иконку' }}</label>
               <div class="emoji-grid">
                 <button v-for="e in EMOJIS" :key="e" :class="['emoji-btn', { active: form.image === e }]" @click="form.image = e">{{ e }}</button>
@@ -435,6 +505,29 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
               </div>
             </div>
 
+            <!-- Markup -->
+            <div class="field">
+              <label class="label">
+                {{ lang === 'tk' ? 'Müşderi bahasy üçin naýba (%)' : 'Наценка для клиента (%)' }}
+              </label>
+              <div class="markup-row">
+                <select v-model.number="form.markup" class="input markup-select">
+                  <option v-for="m in MARKUP_OPTIONS" :key="m" :value="m">
+                    {{ m }}% → ${{ fmt(markedUpPrice(form.price, m)) }}
+                  </option>
+                </select>
+                <div class="markup-preview">
+                  <span class="markup-arrow">↑{{ form.markup }}%</span>
+                  <span class="markup-final">${{ fmt(markedUpPrice(form.price, form.markup)) }}</span>
+                </div>
+              </div>
+              <span class="markup-hint">
+                {{ lang === 'tk'
+                  ? `Müşderi $${fmt(markedUpPrice(form.price, form.markup))} töleýär`
+                  : `Клиент заплатит $${fmt(markedUpPrice(form.price, form.markup))}` }}
+              </span>
+            </div>
+
             <!-- Weight -->
             <div class="field">
               <label class="label">{{ lang === 'tk' ? 'Agram (gram)' : 'Вес товара (граммы)' }}</label>
@@ -446,7 +539,7 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
               </div>
             </div>
 
-            <!-- ✅ Product Options Editor -->
+            <!-- Product Options Editor -->
             <div class="options-editor-section">
               <label class="options-editor-label">
                 {{ lang === 'tk' ? 'Önüm opsiýalary' : 'Параметры товара' }}
@@ -522,16 +615,9 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
 </template>
 
 <style scoped>
-.options-editor-section {
-              display: flex;
-              flex-direction: column;
-              gap: 8px;
-            }
-            .options-editor-label {
-              font-size: 12px;
-              font-weight: 700;
-              color: var(--dark);
-            }
+.options-editor-section { display: flex; flex-direction: column; gap: 8px; }
+.options-editor-label { font-size: 12px; font-weight: 700; color: var(--dark); }
+
 .products { display: flex; flex-direction: column; gap: 16px; }
 
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
@@ -565,8 +651,8 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
 .spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.t-head { display: grid; grid-template-columns: 2fr 1fr 80px 65px 110px 110px 1fr 60px 100px 72px; gap: 8px; padding: 10px 20px; background: var(--surface); font-size: 11px; font-weight: 700; color: var(--subtle); text-transform: uppercase; letter-spacing: .04em; }
-.t-row  { display: grid; grid-template-columns: 2fr 1fr 80px 65px 110px 110px 1fr 60px 100px 72px; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border-light); align-items: center; transition: background .12s; }
+.t-head { display: grid; grid-template-columns: 2fr 1fr 80px 70px 110px 65px 110px 110px 1fr 60px 100px 72px; gap: 8px; padding: 10px 20px; background: var(--surface); font-size: 11px; font-weight: 700; color: var(--subtle); text-transform: uppercase; letter-spacing: .04em; }
+.t-row  { display: grid; grid-template-columns: 2fr 1fr 80px 70px 110px 65px 110px 110px 1fr 60px 100px 72px; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border-light); align-items: center; transition: background .12s; }
 .t-row:hover { background: var(--surface); }
 
 .fast-col   { color: #F59E0B !important; }
@@ -575,13 +661,23 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
 .cell-simple { font-size: 13px; font-weight: 700; color: #3B82F6; }
 
 .prod-cell { display: flex; align-items: center; gap: 10px; }
-.prod-thumb { width: 40px; height: 40px; border-radius: var(--radius-md); overflow: hidden; background: var(--surface); border: 1.5px solid var(--border-light); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.prod-img-real  { width: 100%; height: 100%; object-fit: cover; }
+.prod-thumb { width: 40px; height: 40px; border-radius: var(--radius-md); overflow: visible; background: var(--surface); border: 1.5px solid var(--border-light); display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative; }
+.prod-img-real  { width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-md); }
 .prod-img-emoji { font-size: 22px; }
+.img-count-badge {
+  position: absolute; bottom: -4px; right: -6px;
+  background: var(--dark); color: #fff;
+  font-size: 9px; font-weight: 700;
+  padding: 1px 5px; border-radius: var(--radius-pill);
+  line-height: 1.4;
+}
 .prod-name { font-size: 13px; font-weight: 700; color: var(--dark); }
 .prod-id   { font-size: 11px; color: var(--subtle); margin-top: 2px; font-family: monospace; }
 .cell-muted { font-size: 13px; color: var(--subtle); }
 .cell-bold  { font-size: 13px; font-weight: 700; color: var(--dark); }
+
+.markup-badge { font-size: 12px; font-weight: 700; color: #7C3AED; background: #EDE9FE; padding: 3px 8px; border-radius: var(--radius-pill); display: inline-flex; align-items: center; }
+.cell-client-price { font-size: 13px; font-weight: 800; color: #059669; }
 
 .stock-cell { display: flex; flex-direction: column; gap: 4px; }
 .stock-num { font-size: 13px; font-weight: 700; color: var(--dark); }
@@ -612,19 +708,80 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
 .modal-body p { font-size: 14px; color: var(--dark); }
 .modal-foot { display: flex; gap: 10px; justify-content: flex-end; padding: 14px 24px; border-top: 1px solid var(--border-light); flex-shrink: 0; }
 
-.upload-zone { width: 100%; height: 140px; border: 2px dashed var(--border); border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; gap: 12px; cursor: pointer; transition: all .15s; background: var(--surface); position: relative; overflow: hidden; }
-.upload-zone:hover { border-color: var(--gold); background: var(--gold-glow); }
-.upload-zone.has-image { border-style: solid; border-color: var(--gold); padding: 0; }
-.upload-icon { width: 40px; height: 40px; border-radius: var(--radius-md); background: var(--border-light); display: flex; align-items: center; justify-content: center; }
-.upload-icon svg { width: 20px; height: 20px; color: var(--subtle); }
-.upload-text { display: flex; flex-direction: column; gap: 3px; }
-.upload-text span { font-size: 14px; font-weight: 700; color: var(--dark); }
-.upload-text small { font-size: 11px; color: var(--subtle); }
-.preview-img { width: 100%; height: 100%; object-fit: cover; }
-.preview-overlay { position: absolute; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .15s; }
-.upload-zone:hover .preview-overlay { opacity: 1; }
-.preview-overlay span { color: var(--white); font-size: 13px; font-weight: 700; }
-.remove-img { position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 50%; background: rgba(0,0,0,.6); border: none; color: var(--white); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; line-height: 1; }
+/* ── Multi-image grid ── */
+.label-count { font-weight: 400; color: var(--subtle); margin-left: 4px; }
+
+.multi-image-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.img-slot {
+  aspect-ratio: 1;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  position: relative;
+  overflow: hidden;
+}
+
+.img-slot-thumb { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.img-slot-add {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 4px; cursor: pointer;
+  border-style: dashed;
+  transition: border-color .15s, background .15s;
+}
+.img-slot-add:hover { border-color: var(--gold); background: var(--gold-glow); }
+.img-slot-add svg  { width: 20px; height: 20px; color: var(--subtle); }
+.img-slot-add span { font-size: 11px; color: var(--subtle); }
+
+.img-slot-remove {
+  position: absolute; top: 4px; right: 4px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: rgba(0,0,0,.6); border: none;
+  color: #fff; font-size: 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1; z-index: 10;
+}
+
+.img-slot-uploading {
+  position: absolute; inset: 0;
+  background: rgba(255,255,255,.65);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 5;
+}
+
+.img-slot-primary {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: rgba(0,0,0,.55);
+  color: #fff; font-size: 10px; font-weight: 700;
+  text-align: center; padding: 3px;
+}
+
+.img-slot-order {
+  position: absolute; bottom: 24px; right: 4px;
+  display: flex; gap: 2px; z-index: 10;
+}
+.img-slot-order button {
+  width: 18px; height: 18px; border-radius: 4px;
+  background: rgba(0,0,0,.55); border: none;
+  color: #fff; font-size: 13px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1;
+}
+
+.spinner-sm {
+  width: 20px; height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
 .file-input { display: none; }
 
 .field { display: flex; flex-direction: column; gap: 5px; flex: 1; }
@@ -634,15 +791,7 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
 .input.error { border-color: var(--error); }
 .err { font-size: 11px; color: var(--error); }
 
-.options-error {
-  font-size: 12px;
-  color: var(--error);
-  padding: 10px 12px;
-  background: #FEF2F2;
-  border-radius: var(--radius-md);
-  margin-top: 6px;
-  border: 1px solid #FECACA;
-}
+.options-error { font-size: 12px; color: var(--error); padding: 10px 12px; background: #FEF2F2; border-radius: var(--radius-md); margin-top: 6px; border: 1px solid #FECACA; }
 .form-row { display: flex; gap: 12px; }
 .emoji-grid { display: flex; flex-wrap: wrap; gap: 6px; }
 .emoji-btn { width: 36px; height: 36px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--surface); font-size: 18px; cursor: pointer; transition: all .12s; }
@@ -652,7 +801,6 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
 .input-with-hint .input { padding-right: 52px; }
 .input-hint { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 11px; color: var(--gold); font-weight: 700; pointer-events: none; }
 
-/* Delivery preview */
 .delivery-preview { border-radius: var(--radius-lg); border: 1.5px solid var(--border-light); overflow: hidden; }
 .delivery-preview-title { padding: 10px 14px; background: var(--surface); font-size: 11px; font-weight: 700; color: var(--subtle); text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--border-light); }
 .delivery-options { display: grid; grid-template-columns: 1fr 1fr; }
@@ -682,4 +830,11 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(12px); }
 .modal-enter-active, .modal-leave-active { transition: opacity .2s; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
+
+.markup-row { display: flex; gap: 10px; align-items: center; }
+.markup-select { flex: 1; }
+.markup-preview { display: flex; flex-direction: column; align-items: center; background: #F0FDF4; border: 1.5px solid #86EFAC; border-radius: var(--radius-md); padding: 6px 14px; gap: 2px; flex-shrink: 0; }
+.markup-arrow { font-size: 11px; font-weight: 700; color: #059669; }
+.markup-final { font-size: 16px; font-weight: 800; color: #059669; font-family: var(--font-display); }
+.markup-hint  { font-size: 11px; color: #059669; font-weight: 600; }
 </style>

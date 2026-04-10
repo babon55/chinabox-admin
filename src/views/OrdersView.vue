@@ -126,6 +126,17 @@ async function confirmDelete() {
 
 function fmt(n: number | string) { return Number(n).toFixed(2) }
 function fmtDate(d: string) { return new Date(d).toLocaleDateString(lang.value === 'tk' ? 'tk-TM' : 'ru-RU', { day: '2-digit', month: 'short', year: 'numeric' }) }
+
+const subtotal = computed(() => {
+  if (!drawer.value?.lines) return 0
+  return drawer.value.lines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0)
+})
+
+const delivery = computed(() => {
+  if (!drawer.value) return 0
+  const diff = drawer.value.total - subtotal.value
+  return diff > 0 ? diff : 0
+})
 </script>
 
 <template>
@@ -250,9 +261,20 @@ function fmtDate(d: string) { return new Date(d).toLocaleDateString(lang.value =
                 <span class="line-price">${{ fmt(l.unitPrice * l.qty) }}</span>
               </div>
             </div>
-            <div class="total-row">
-              <span>{{ lang === 'tk' ? 'Jemi' : 'Итого' }}</span>
-              <strong>${{ fmt(drawer.total) }}</strong>
+            <div class="summary-section">
+              <div class="summary-row">
+                <span>{{ lang === 'tk' ? 'Ara jemi' : 'Подытог' }}</span>
+                <span>${{ fmt(subtotal) }}</span>
+              </div>
+              <div v-if="delivery > 0" class="summary-row">
+                <span>{{ lang === 'tk' ? 'Eltip beriş' : 'Доставка' }}</span>
+                <span>${{ fmt(delivery) }}</span>
+              </div>
+              <div class="summary-divider" />
+              <div class="summary-row total">
+                <span>{{ lang === 'tk' ? 'Jemi' : 'Итого' }}</span>
+                <strong>${{ fmt(drawer.total) }}</strong>
+              </div>
             </div>
           </div>
 
@@ -393,8 +415,13 @@ function fmtDate(d: string) { return new Date(d).toLocaleDateString(lang.value =
   font-weight: 700;
 }
 .line-price { font-size: 14px; font-weight: 700; color: var(--dark); }
-.total-row { display: flex; justify-content: space-between; padding: 10px 0 0; font-size: 14px; border-top: 1px solid var(--border-light); }
-.total-row strong { font-size: 16px; font-weight: 800; color: var(--dark); }
+.summary-section { display: flex; flex-direction: column; gap: 8px; }
+.summary-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--subtle); }
+.summary-row span:last-child { font-weight: 600; color: var(--dark); }
+.summary-divider { height: 1px; background: var(--border-light); margin: 4px 0; }
+.summary-row.total { font-size: 15px; padding-top: 8px; border-top: 1px solid var(--border-light); }
+.summary-row.total span { color: var(--dark); font-weight: 800; }
+.summary-row.total span:last-child { font-size: 18px; font-family: var(--font-display); color: var(--gold); }
 .note { font-size: 13px; color: var(--dark); background: var(--surface); border-radius: var(--radius-md); padding: 10px 12px; line-height: 1.5; }
 .status-btns { display: flex; flex-wrap: wrap; gap: 8px; }
 .status-btn { padding: 6px 14px; border-radius: var(--radius-pill); border: 1.5px solid var(--border); background: var(--surface); font-size: 12px; font-weight: 700; cursor: pointer; font-family: var(--font-body); transition: all .15s; color: var(--muted); }

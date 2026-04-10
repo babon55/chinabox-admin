@@ -29,11 +29,13 @@
     category:   Category
     image:      string
     imageUrl?:  string | null
+    imageUrls:  string[]        // ← NEW
     price:      number
     weightG?:   number | null
     stock:      number
     sold:       number
     status:     'ACTIVE' | 'DRAFT' | 'ARCHIVED'
+    markup:     number
     options:    ProductOption[]   // ← NEW: configurable options
     createdAt:  string
     updatedAt:  string
@@ -45,10 +47,12 @@
     categoryId: string
     image:      string
     imageUrl?:  string | null
+    imageUrls:  string[]        // ← NEW
     price:      number
     weightG?:   number | null
     stock:      number
     status:     'ACTIVE' | 'DRAFT' | 'ARCHIVED'
+    markup:     number
     options:    ProductOption[]   // ← NEW
   }
 
@@ -76,13 +80,26 @@
     categories: ()                                      => client.get<Category[]>('/products/categories/all'),
   }
 
-  export const uploadApi = {
-    uploadImage: (file: File) => {
-      const form = new FormData()
-      form.append('file', file)
-      return client.post<{ url: string; publicId: string }>('/upload/product', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+ export const uploadApi = {
+  uploadImage: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return client.post<{ url: string; publicId: string }>('/upload/product', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  // ← NEW: upload multiple files, returns array of results
+  uploadImages: async (files: File[]) => {
+    const results = await Promise.all(
+      files.map(file => {
+        const form = new FormData()
+        form.append('file', file)
+        return client.post<{ url: string; publicId: string }>('/upload/product', form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
       })
-    },
-    deleteImage: (publicId: string) => client.delete('/upload/product', { data: { publicId } }),
-  }
+    )
+    return results.map(r => r.data)
+  },
+  deleteImage: (publicId: string) => client.delete('/upload/product', { data: { publicId } }),
+}
