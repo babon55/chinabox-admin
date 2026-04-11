@@ -78,7 +78,7 @@ function cancel() {
     <div class="option-picker">
       <div class="op-header">
         <h3>{{ L.title }}</h3>
-        <p class="op-product">{{ product.name }}</p>
+        <p class="op-product">{{ lang === 'tk' ? product.nameTk : product.nameRu }}</p>
       </div>
 
       <div v-if="!hasOptions()" class="op-empty">

@@ -12,3 +12,13 @@ export const authApi = {
   updateMe:       (data: Partial<AuthUser & { phone: string; timezone: string; langPref: string }>) => client.patch<AuthUser>('/auth/me', data),
   changePassword: (currentPassword: string, newPassword: string) => client.post('/auth/change-password', { currentPassword, newPassword }),
 }
+export interface AuthUser {
+  id:        string
+  name:      string
+  email:     string
+  role:      string
+  avatar:    string
+  phone?:    string
+  timezone?: string
+  langPref?: string
+}

@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { ordersApi }   from '@/api/orders'
+import { ordersApi }    from '@/api/orders'
 import { customersApi } from '@/api/customers'
 import { productsApi }  from '@/api/products'
 import type { Lang }    from '@/types'
+import type { Customer } from '@/api/customers'
+import type { Product }  from '@/api/products'
 import ProductOptionPicker from './ProductOptionPicker.vue'
+import { getErrorMessage } from '@/utils/error'
 
 const props = defineProps<{ open: boolean; lang: Lang }>()
 const emit  = defineEmits<{
@@ -12,63 +15,76 @@ const emit  = defineEmits<{
   (e: 'created'): void
 }>()
 
+const deliveryType = ref<'simple' | 'fast'>('simple')
+const homeDelivery = ref(false)
+
 // ── i18n ─────────────────────────────────────────────────────────────────────
 const L = computed(() => props.lang === 'tk' ? {
-  title:       'Täze Sargyt',
-  customer:    'Müşderi saýla',
-  searchCust:  'Müşderi gözle...',
-  products:    'Haryt goş',
-  searchProd:  'Haryt gözle...',
-  qty:         'Mukdar',
-  price:       'Baha',
-  note:        'Bellik (islege görä)',
-  notePh:      'Sargyt barada bellik...',
-  add:         'Goş',
-  remove:      'Aýyr',
-  cancel:      'Ýok',
-  create:      'Döret',
-  creating:    'Döredilýär...',
-  total:       'Jemi',
-  noLines:     'Azyndan bir haryt goşuň',
-  noCust:      'Müşderi saýlaň',
-  errCreate:   'Sargyt döredilmedi',
+  title:      'Täze Sargyt',
+  customer:   'Müşderi saýla',
+  searchCust: 'Müşderi gözle...',
+  products:   'Haryt goş',
+  searchProd: 'Haryt gözle...',
+  qty:        'Mukdar',
+  price:      'Baha',
+  note:       'Bellik (islege görä)',
+  notePh:     'Sargyt barada bellik...',
+  add:        'Goş',
+  remove:     'Aýyr',
+  cancel:     'Ýok',
+  create:     'Döret',
+  creating:   'Döredilýär...',
+  total:      'Jemi',
+  noLines:    'Azyndan bir haryt goşuň',
+  noCust:     'Müşderi saýlaň',
+  errCreate:  'Sargyt döredilmedi',
 } : {
-  title:       'Новый заказ',
-  customer:    'Выберите клиента',
-  searchCust:  'Найти клиента...',
-  products:    'Добавить товар',
-  searchProd:  'Найти товар...',
-  qty:         'Кол-во',
-  price:       'Цена',
-  note:        'Примечание (необязательно)',
-  notePh:      'Заметка к заказу...',
-  add:         'Добавить',
-  remove:      'Убрать',
-  cancel:      'Отмена',
-  create:      'Создать',
-  creating:    'Создание...',
-  total:       'Итого',
-  noLines:     'Добавьте хотя бы один товар',
-  noCust:      'Выберите клиента',
-  errCreate:   'Не удалось создать заказ',
+  title:      'Новый заказ',
+  customer:   'Выберите клиента',
+  searchCust: 'Найти клиента...',
+  products:   'Добавить товар',
+  searchProd: 'Найти товар...',
+  qty:        'Кол-во',
+  price:      'Цена',
+  note:       'Примечание (необязательно)',
+  notePh:     'Заметка к заказу...',
+  add:        'Добавить',
+  remove:     'Убрать',
+  cancel:     'Отмена',
+  create:     'Создать',
+  creating:   'Создание...',
+  total:      'Итого',
+  noLines:    'Добавьте хотя бы один товар',
+  noCust:     'Выберите клиента',
+  errCreate:  'Не удалось создать заказ',
 })
 
-// ── State ─────────────────────────────────────────────────────────────────────
-const customers     = ref<any[]>([])
-const products      = ref<any[]>([])
-const custSearch    = ref('')
-const prodSearch    = ref('')
-const selectedCust  = ref<any | null>(null)
-const lines         = ref<{ productId: string; name: Record<string,string>; image: string; qty: number; unitPrice: number; options?: Record<string,string>; optionsDisplay?: { name: string; value: string }[] }[]>([])
-const note          = ref('')
-const submitting    = ref(false)
-const error         = ref('')
-const custOpen      = ref(false)
-const prodOpen      = ref(false)
+// ── Types ─────────────────────────────────────────────────────────────────────
+interface LineItem {
+  productId:       string
+  name:            Record<string, string>
+  image:           string
+  qty:             number
+  unitPrice:       number
+  options?:        Record<string, string>
+  optionsDisplay?: { name: string; value: string }[]
+}
 
-// Option picker state: optionId → value
-const pickerProduct = ref<any | null>(null)
-const pickerOptions = ref<Record<string,string>>({})
+// ── State ─────────────────────────────────────────────────────────────────────
+const customers    = ref<Customer[]>([])
+const products     = ref<Product[]>([])
+const custSearch   = ref('')
+const prodSearch   = ref('')
+const selectedCust = ref<Customer | null>(null)
+const lines        = ref<LineItem[]>([])
+const note         = ref('')
+const submitting   = ref(false)
+const error        = ref('')
+const custOpen     = ref(false)
+const prodOpen     = ref(false)
+
+const pickerProduct = ref<Product | null>(null)
+const pickerOptions = ref<Record<string, string>>({})
 const pickerOpen    = ref(false)
 
 // ── Load data ─────────────────────────────────────────────────────────────────
@@ -97,47 +113,45 @@ let prodTimer: ReturnType<typeof setTimeout>
 watch(prodSearch, () => { clearTimeout(prodTimer); prodTimer = setTimeout(loadProducts, 300) })
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function selectCustomer(c: any) {
+function selectCustomer(c: Customer) {
   selectedCust.value = c
-  custOpen.value = false
-  custSearch.value = ''
+  custOpen.value     = false
+  custSearch.value   = ''
 }
 
-function addLine(p: any) {
-  // If product has options, open picker
+function addLine(p: Product) {
   if (p.options && p.options.length > 0) {
     pickerProduct.value = p
     pickerOptions.value = {}
-    pickerOpen.value = true
+    pickerOpen.value    = true
     return
   }
-  // No options, add directly
   pushLine(p, {})
 }
 
-function pushLine(p: any, opts: Record<string, string>) {
+function pushLine(p: Product, opts: Record<string, string>) {
   const existing = lines.value.find(l => l.productId === p.id)
-  if (existing) {
-    existing.qty++
-    return
-  }
-  // Precompute display array for options (for UI only)
+  if (existing) { existing.qty++; return }
+
   const optionsDisplay = p.options?.length
-    ? p.options.filter((o: any) => opts[o.id]).map((o: any) => ({
-        name: props.lang === 'tk' ? o.nameTk : o.nameRu,
-        value: opts[o.id]
-      }))
+    ? p.options
+        .filter(o => opts[o.id])
+        .map(o => ({
+          name:  props.lang === 'tk' ? o.nameTk : o.nameRu,
+          value: opts[o.id] as string,
+        }))
     : undefined
+
   lines.value.push({
-    productId: p.id,
-    name:      { tk: p.nameTk, ru: p.nameRu },
-    image:     p.image ?? '📦',
-    qty:       1,
-    unitPrice: Number(p.price),
-    options:   Object.keys(opts).length ? opts : undefined,
-    optionsDisplay  // UI-only field, ignored by API
+    productId:      p.id,
+    name:           { tk: p.nameTk, ru: p.nameRu },
+    image:          p.image ?? '📦',
+    qty:            1,
+    unitPrice:      Number(p.price),
+    options:        Object.keys(opts).length ? opts : undefined,
+    optionsDisplay,
   })
-  prodOpen.value = false
+  prodOpen.value   = false
   prodSearch.value = ''
 }
 
@@ -145,13 +159,13 @@ function onPickerConfirm() {
   if (pickerProduct.value) {
     pushLine(pickerProduct.value, pickerOptions.value)
   }
-  pickerOpen.value = false
+  pickerOpen.value    = false
   pickerProduct.value = null
   pickerOptions.value = {}
 }
 
 function onPickerCancel() {
-  pickerOpen.value = false
+  pickerOpen.value    = false
   pickerProduct.value = null
   pickerOptions.value = {}
 }
@@ -161,26 +175,30 @@ function removeLine(idx: number) { lines.value.splice(idx, 1) }
 const total = computed(() => lines.value.reduce((s, l) => s + l.qty * l.unitPrice, 0))
 
 function reset() {
-  selectedCust.value = null
-  lines.value        = []
-  note.value         = ''
-  error.value        = ''
-  custSearch.value   = ''
-  prodSearch.value   = ''
-  custOpen.value     = false
-  prodOpen.value     = false
+  selectedCust.value  = null
+  lines.value         = []
+  note.value          = ''
+  error.value         = ''
+  custSearch.value    = ''
+  prodSearch.value    = ''
+  custOpen.value      = false
+  prodOpen.value      = false
+  deliveryType.value  = 'simple'
+  homeDelivery.value  = false
 }
 
 // ── Submit ────────────────────────────────────────────────────────────────────
 async function submit() {
   error.value = ''
   if (!selectedCust.value) { error.value = L.value.noCust;  return }
-  if (!lines.value.length) { error.value = L.value.noLines; return }
+  if (!lines.value.length)  { error.value = L.value.noLines; return }
 
   submitting.value = true
   try {
     await ordersApi.create({
-      customerId: selectedCust.value.id,
+      customerId:   selectedCust.value.id,
+      deliveryType: deliveryType.value,
+      homeDelivery: homeDelivery.value,
       lines: lines.value.map(l => ({
         productId: l.productId,
         qty:       l.qty,
@@ -191,8 +209,8 @@ async function submit() {
     })
     emit('created')
     emit('close')
-  } catch (e: any) {
-    error.value = e?.response?.data?.message ?? L.value.errCreate
+  } catch (e: unknown) {
+    error.value = getErrorMessage(e) ?? L.value.errCreate
   } finally {
     submitting.value = false
   }
@@ -321,7 +339,7 @@ async function submit() {
 
   <!-- Product Option Picker Modal -->
   <ProductOptionPicker
-    v-if="pickerOpen"
+    v-if="pickerOpen && pickerProduct"
     :product="pickerProduct"
     :lang="props.lang"
     :model-value="pickerOptions"

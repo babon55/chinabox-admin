@@ -4,6 +4,7 @@ import { useUiStore } from '@/stores/ui'
 import { ordersApi, type Order, type OrderStatus } from '@/api/orders'
 import type { Lang } from '@/types'
 import CreateOrderModal from '@/components/CreateOrderModal.vue'
+import { getErrorMessage } from '@/utils/error'
 
 const ui   = useUiStore()
 const lang = computed((): Lang => ui.lang)
@@ -22,17 +23,19 @@ const createOpen   = ref(false)
 
 const toast = ref<{ msg: string; type: 'success' | 'error' } | null>(null)
 
-function hasLineOptions(line: any): boolean {
+import type { OrderLine } from '@/api/orders'
+import type { ProductOption } from '@/api/products' // add this import if not already there
+
+function hasLineOptions(line: OrderLine): boolean {
   if (!line.options || !line.product?.options) return false
-  // Debug: check actual keys
-  const keys = Object.keys(line.options)
-  console.log('Line options keys:', keys, 'options:', line.options)
-  return keys.length > 0 && Array.isArray(line.product.options) && line.product.options.length > 0
+  return Object.keys(line.options).length > 0 &&
+    Array.isArray(line.product.options) &&
+    line.product.options.length > 0
 }
 
-function getLineOptions(line: any): any[] {
+function getLineOptions(line: OrderLine): ProductOption[] {
   if (!line.product?.options || !Array.isArray(line.product.options)) return []
-  return line.product.options.filter((opt: any) => line.options?.[opt.id])
+  return line.product.options.filter(opt => line.options?.[opt.id])
 }
 function showToast(msg: string, type: 'success' | 'error' = 'success') {
   toast.value = { msg, type }
@@ -45,9 +48,9 @@ async function load() {
     const res = await ordersApi.list({ status: filter.value === 'ALL' ? undefined : filter.value, search: search.value || undefined, page: page.value })
     orders.value = res.data.items
     total.value  = res.data.total
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Failed to load orders:', err)
-    showToast(err?.response?.data?.message ?? 'Failed to load orders', 'error')
+    showToast(getErrorMessage(err) ?? 'Failed to load orders', 'error')
   } finally { loading.value = false }
 }
 
@@ -106,7 +109,7 @@ async function updateStatus(order: Order, status: OrderStatus) {
     await load()
     showToast(lang.value === 'tk' ? 'Ýagdaý täzelendi' : 'Статус обновлён')
   } catch (err: unknown) {
-    showToast((err as any)?.response?.data?.message ?? 'Error', 'error')
+    showToast(getErrorMessage(err) ?? 'Error', 'error')
   } finally { updating.value = false }
 }
 
@@ -119,8 +122,8 @@ async function confirmDelete() {
     deleteTarget.value = null
     drawer.value = null
     await load()
-  } catch (e: any) {
-    showToast(e.response?.data?.message ?? 'Error', 'error')
+  } catch (e: unknown) {
+    showToast(getErrorMessage(e) ?? 'Error', 'error')
   } finally { deleting.value = false }
 }
 
@@ -132,10 +135,18 @@ const subtotal = computed(() => {
   return drawer.value.lines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0)
 })
 
-const delivery = computed(() => {
+const deliveryCost = computed(() => {
   if (!drawer.value) return 0
-  const diff = drawer.value.total - subtotal.value
-  return diff > 0 ? diff : 0
+  return Math.max(0, drawer.value.total - subtotal.value)
+})
+
+const deliveryLabel = computed(() => {
+  if (!drawer.value) return ''
+  const map = {
+    simple: { tk: 'Adaty',  ru: 'Обычная' },
+    fast:   { tk: 'Tiz',    ru: 'Быстрая' },
+  }
+  return map[drawer.value.deliveryType]?.[lang.value] ?? ''
 })
 </script>
 
@@ -240,6 +251,10 @@ const delivery = computed(() => {
               <div class="info-row"><span>{{ lang === 'tk' ? 'E-poçta' : 'Email' }}</span><strong>{{ drawer.customer?.email }}</strong></div>
               <div class="info-row"><span>{{ lang === 'tk' ? 'Telefon' : 'Телефон' }}</span><strong>{{ drawer.customer?.phone }}</strong></div>
               <div class="info-row"><span>{{ lang === 'tk' ? 'Salgy' : 'Адрес' }}</span><strong>{{ drawer.customer?.address }}</strong></div>
+              <div class="info-row">
+                <span>{{ lang === 'tk' ? 'Eltip beriş görnüşi' : 'Тип доставки' }}</span>
+                <strong>{{ deliveryLabel }}{{ drawer.homeDelivery ? ' + 🏠' : '' }}</strong>
+              </div>
             </div>
           </div>
 
@@ -254,7 +269,7 @@ const delivery = computed(() => {
                   <div class="line-qty">× {{ l.qty }}</div>
                   <div v-if="hasLineOptions(l)" class="line-options">
                     <span v-for="opt in getLineOptions(l)" :key="opt.id" class="line-opt">
-                      {{ lang === 'tk' ? opt.nameTk : opt.nameRu }}: <strong>{{ l.options[opt.id] }}</strong>
+                      {{ lang === 'tk' ? opt.nameTk : opt.nameRu }}: <strong>{{ l.options?.[opt.id] }}</strong>
                     </span>
                   </div>
                 </div>
@@ -266,9 +281,13 @@ const delivery = computed(() => {
                 <span>{{ lang === 'tk' ? 'Ara jemi' : 'Подытог' }}</span>
                 <span>${{ fmt(subtotal) }}</span>
               </div>
-              <div v-if="delivery > 0" class="summary-row">
-                <span>{{ lang === 'tk' ? 'Eltip beriş' : 'Доставка' }}</span>
-                <span>${{ fmt(delivery) }}</span>
+              <div class="summary-row">
+                <span>
+                  {{ lang === 'tk' ? 'Eltip beriş' : 'Доставка' }}
+                  <em class="delivery-tag">{{ deliveryLabel }}</em>
+                  <em v-if="drawer.homeDelivery" class="delivery-tag">🏠</em>
+                </span>
+                <span>${{ fmt(deliveryCost) }}</span>
               </div>
               <div class="summary-divider" />
               <div class="summary-row total">
@@ -466,4 +485,14 @@ const delivery = computed(() => {
   white-space: nowrap; transition: background .15s;
 }
 .new-order-btn:hover { background: var(--gold-dark); }
+.delivery-tag {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gold);
+  background: rgba(232,160,32,.1);
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  margin-left: 5px;
+}
 </style>

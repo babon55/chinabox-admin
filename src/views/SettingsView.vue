@@ -4,6 +4,7 @@ import { useUiStore }   from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
 import { settingsApi, type StoreSettings } from '@/api/settings'
 import { authApi } from '@/api/auth'
+import { getErrorMessage } from '@/utils/error'
 
 const ui   = useUiStore()
 const auth = useAuthStore()
@@ -30,8 +31,8 @@ async function saveStore() {
     const res = await settingsApi.updateStore(store.value)
     store.value = { ...res.data }
     showToast(lang.value === 'tk' ? 'Ýatda saklandy' : 'Сохранено')
-  } catch (e: any) {
-    showToast(e.response?.data?.message ?? 'Error', 'error')
+  } catch (e: unknown) {
+    showToast(getErrorMessage(e) ?? 'Error', 'error')
   } finally { storeSaving.value = false }
 }
 
@@ -43,10 +44,10 @@ onMounted(() => {
   if (auth.user) {
     account.value = {
       name:     auth.user.name,
-      phone:    (auth.user as any).phone ?? '',
-      avatar:   auth.user.avatar ?? '👤',
-      timezone: (auth.user as any).timezone ?? 'Asia/Ashgabat',
-      langPref: (auth.user as any).langPref ?? 'tk',
+      phone:    auth.user.phone    ?? '',
+      avatar:   auth.user.avatar   ?? '👤',
+      timezone: auth.user.timezone ?? 'Asia/Ashgabat',
+      langPref: auth.user.langPref ?? 'tk',
     }
   }
 })
@@ -56,8 +57,8 @@ async function saveAccount() {
   try {
     await auth.updateMe(account.value)
     showToast(lang.value === 'tk' ? 'Ýatda saklandy' : 'Сохранено')
-  } catch (e: any) {
-    showToast(e.response?.data?.message ?? 'Error', 'error')
+  } catch (e: unknown) {
+    showToast(getErrorMessage(e) ?? 'Error', 'error')
   } finally { accountSaving.value = false }
 }
 
@@ -78,8 +79,8 @@ async function savePassword() {
     await authApi.changePassword(pw.value.current, pw.value.next)
     pw.value = { current: '', next: '', confirm: '' }
     showToast(lang.value === 'tk' ? 'Parol üýtgedildi' : 'Пароль изменён')
-  } catch (e: any) {
-    showToast(e.response?.data?.message ?? 'Error', 'error')
+  } catch (e: unknown) {
+    showToast(getErrorMessage(e) ?? 'Error', 'error')
   } finally { pwSaving.value = false }
 }
 

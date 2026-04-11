@@ -53,8 +53,9 @@ function revenuePoints(items: { revenue: number }[]) {
 function revenuePath(items: { revenue: number }[]) {
   const pts = revenuePoints(items).split(' ')
   if (pts.length < 2) return ''
-  const last = pts[pts.length - 1].split(',')
-  const first = pts[0].split(',')
+  const first = pts[0]?.split(',')
+  const last  = pts[pts.length - 1]?.split(',')
+  if (!first || !last) return ''
   return `M ${pts.join(' L ')} L ${last[0]},${chartH - pad} L ${first[0]},${chartH - pad} Z`
 }
 function ordersBars(items: { orders: number }[]) {

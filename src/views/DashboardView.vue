@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useUiStore } from '@/stores/ui'
 import { dashboardApi, type DashboardResponse } from '@/api/dashboard'
+import { getErrorMessage } from '@/utils/error'
 
 const ui   = useUiStore()
 const lang = computed(() => ui.lang)
@@ -14,8 +15,8 @@ onMounted(async () => {
   try {
     const res = await dashboardApi.get()
     data.value = res.data
-  } catch (e: any) {
-    error.value = e.response?.data?.message ?? 'Failed to load dashboard'
+  } catch (e: unknown) {
+    error.value = getErrorMessage(e) ?? 'Failed to load dashboard'
   } finally {
     loading.value = false
   }

@@ -4,6 +4,7 @@ import { useUiStore } from '@/stores/ui'
 import { productsApi, uploadApi, type Product, type ProductForm, type Category } from '@/api/products'
 
 import ProductOptionsEditor from '@/components/ProductOptionsEditor.vue'
+import { getErrorMessage } from '@/utils/error'
 
 const ui   = useUiStore()
 const lang = computed(() => ui.lang)
@@ -140,10 +141,9 @@ function removeImage(idx: number) {
 
 function moveImage(from: number, to: number) {
   const arr = imageEntries.value
-  const [item] = arr.splice(from, 1)
+  const item = arr.splice(from, 1)[0] as ImageEntry
   arr.splice(to, 0, item)
 }
-
 // ── Modal ─────────────────────────────────────────────────────────────────────
 const EMOJIS = ['📦','🎧','⌚','🔋','🔊','🎒','💡','🔌','👟','🧴','⌨️','🖥️','📱','🎮','🛒','🎁','💎','👗','🧥','🏠']
 
@@ -252,7 +252,7 @@ async function save() {
     showModal.value = false
     await load()
   } catch (err: unknown) {
-    showToast((err as any)?.response?.data?.message ?? 'Error', 'error')
+    showToast(getErrorMessage(err, 'Failed to load products'), 'error')
   } finally {
     saving.value = false
   }
@@ -267,7 +267,7 @@ async function confirmDelete() {
     deleteTarget.value = null
     await load()
   } catch (err: unknown) {
-    showToast((err as any)?.response?.data?.message ?? 'Error', 'error')
+    showToast(getErrorMessage(err, 'Failed to load products'), 'error')
   } finally { deleting.value = false }
 }
 

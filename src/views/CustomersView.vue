@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useUiStore } from '@/stores/ui'
 import { customersApi, type Customer, type CustomerForm } from '@/api/customers'
+import { getErrorMessage } from '@/utils/error'
 
 const ui   = useUiStore()
 const lang = computed(() => ui.lang)
@@ -109,7 +110,7 @@ async function save() {
     showModal.value = false
     await load()
   } catch (err: unknown) {
-    showToast((err as any)?.response?.data?.message ?? 'Error', 'error')
+    showToast(getErrorMessage(err) ?? 'Error', 'error')
   } finally { saving.value = false }
 }
 
@@ -123,7 +124,7 @@ async function confirmDelete() {
     drawer.value = null
     await load()
   } catch (err: unknown) {
-    showToast((err as any)?.response?.data?.message ?? 'Error', 'error')
+    showToast(getErrorMessage(err) ?? 'Error', 'error')
   } finally { deleting.value = false }
 }
 

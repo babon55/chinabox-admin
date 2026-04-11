@@ -111,4 +111,7 @@ export interface CustomerItem {
   orders:      CustomerOrder[]
 }
 
-export type CustomerForm = Pick<CustomerItem, 'name' | 'email' | 'phone' | 'address' | 'status'>
+// And CustomerForm status field:
+export type CustomerForm = Pick<CustomerItem, 'name' | 'email' | 'phone' | 'address'> & {
+  status: 'ACTIVE' | 'BLOCKED'
+}

@@ -56,16 +56,16 @@ function initials(name: string) {
 }
 
 const STATUS_CFG: Record<CustomerStatus, { color: string; bg: string; tk: string; ru: string }> = {
-  active:  { color: '#22C55E', bg: 'rgba(34,197,94,.12)',  tk: 'Işjeň',     ru: 'Активен'      },
-  blocked: { color: '#EF4444', bg: 'rgba(239,68,68,.12)',  tk: 'Bloklanan', ru: 'Заблокирован'  },
+  ACTIVE:  { color: '#22C55E', bg: 'rgba(34,197,94,.12)',  tk: 'Işjeň',     ru: 'Активен'      },
+  BLOCKED: { color: '#EF4444', bg: 'rgba(239,68,68,.12)',  tk: 'Bloklanan', ru: 'Заблокирован'  },
 }
 
 const ORDER_STATUS: Record<OrderStatus, { color: string; bg: string; tk: string; ru: string }> = {
-  pending:    { color: '#F59E0B', bg: 'rgba(245,158,11,.12)', tk: 'Garaşylýar', ru: 'Ожидает'     },
-  processing: { color: '#3B82F6', bg: 'rgba(59,130,246,.12)', tk: 'Işlenýär',   ru: 'В обработке' },
-  shipped:    { color: '#8B5CF6', bg: 'rgba(139,92,246,.12)', tk: 'Iberildi',   ru: 'Отправлен'   },
-  delivered:  { color: '#22C55E', bg: 'rgba(34,197,94,.12)',  tk: 'Eltildi',    ru: 'Доставлен'   },
-  cancelled:  { color: '#EF4444', bg: 'rgba(239,68,68,.12)',  tk: 'Ýatyryldy', ru: 'Отменён'     },
+  PENDING:    { color: '#F59E0B', bg: 'rgba(245,158,11,.12)', tk: 'Garaşylýar', ru: 'Ожидает'     },
+  PROCESSING: { color: '#3B82F6', bg: 'rgba(59,130,246,.12)', tk: 'Işlenýär',   ru: 'В обработке' },
+  SHIPPED:    { color: '#8B5CF6', bg: 'rgba(139,92,246,.12)', tk: 'Iberildi',   ru: 'Отправлен'   },
+  DELIVERED:  { color: '#22C55E', bg: 'rgba(34,197,94,.12)',  tk: 'Eltildi',    ru: 'Доставлен'   },
+  CANCELLED:  { color: '#EF4444', bg: 'rgba(239,68,68,.12)',  tk: 'Ýatyryldy', ru: 'Отменён'     },
 }
 </script>
 
