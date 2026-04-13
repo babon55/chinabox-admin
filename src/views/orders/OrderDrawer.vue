@@ -2,6 +2,19 @@
 import { computed } from 'vue'
 import type { OrderItem, OrderStatus, Lang } from '@/types'
 
+const deliveryCost = computed(() => {
+  if (!props.order) return 0
+  const homeFee = props.order.homeDelivery ? 1 : 0
+  return Math.max(0, props.order.total - subtotal.value - homeFee)
+})
+
+const deliveryLabel = computed(() => {
+  if (!props.order) return ''
+  return props.order.deliveryType === 'fast'
+    ? (props.lang === 'tk' ? 'Tiz' : 'Быстрая')
+    : (props.lang === 'tk' ? 'Adaty' : 'Обычная')
+})
+
 const props = defineProps<{
   order: OrderItem | null
   lang:  Lang
@@ -58,7 +71,6 @@ const L = computed(() => props.lang === 'tk' ? {
 const subtotal = computed(() =>
   props.order?.lines.reduce((s, l) => s + l.qty * l.unitPrice, 0) ?? 0
 )
-const shipping = computed(() => subtotal.value >= 50 ? 0 : 4.99)
 </script>
 
 <template>
@@ -156,10 +168,15 @@ const shipping = computed(() => subtotal.value >= 50 ? 0 : 4.99)
                 <span>${{ subtotal.toFixed(2) }}</span>
               </div>
               <div class="sum-row">
-                <span>{{ L.shipping }}</span>
-                <span :style="shipping === 0 ? { color: 'var(--success)', fontWeight: 700 } : {}">
-                  {{ shipping === 0 ? L.free : `$${shipping.toFixed(2)}` }}
+                <span>
+                  {{ L.shipping }}
+                  <em class="delivery-tag">{{ deliveryLabel }}</em>
                 </span>
+                <span>${{ deliveryCost.toFixed(2) }}</span>
+              </div>
+              <div v-if="order.homeDelivery" class="sum-row">
+                <span>{{ lang === 'tk' ? 'Öýe eltip bermek' : 'Доставка домой' }} 🏠</span>
+                <span>$1.00</span>
               </div>
               <div class="sum-row total-row">
                 <span>{{ L.total }}</span>
@@ -304,4 +321,6 @@ const shipping = computed(() => subtotal.value >= 50 ? 0 : 4.99)
 .drawer-foot { padding: 16px 24px; border-top: 1px solid var(--border-light); flex-shrink: 0; }
 .btn-close { width: 100%; height: 40px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--surface); font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; transition: all .15s; font-family: var(--font-body); }
 .btn-close:hover { border-color: var(--dark); color: var(--dark); background: var(--white); }
+/* ADD to OrderDrawer <style> */
+.delivery-tag { font-style: normal; font-size: 10px; font-weight: 700; color: var(--gold); background: rgba(232,160,32,.1); padding: 1px 6px; border-radius: var(--radius-pill); margin-left: 5px; }
 </style>

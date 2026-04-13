@@ -29,6 +29,7 @@ const L = {
       <span>{{ L[lang].customer }}</span>
       <span class="hide-sm">{{ L[lang].items }}</span>
       <span>{{ L[lang].total }}</span>
+      <span>{{ lang === 'tk' ? 'Eltip beriş' : 'Доставка' }}</span>
       <span>{{ L[lang].status }}</span>
       <span class="hide-sm">{{ L[lang].date }}</span>
       <span>{{ L[lang].actions }}</span>
@@ -46,6 +47,16 @@ const L = {
         </div>
         <span class="dim hide-sm">{{ o.lines.length }} {{ L[lang].ea }}</span>
         <span class="bold">${{ o.total.toFixed(2) }}</span>
+        <div class="delivery-cell">
+          <span class="pill" :style="o.deliveryType === 'fast'
+            ? { color: '#5B21B6', background: 'rgba(139,92,246,.12)' }
+            : { color: '#14532D', background: 'rgba(34,197,94,.12)'  }">
+            {{ o.deliveryType === 'fast'
+              ? (lang === 'tk' ? 'Tiz' : 'Быстрая')
+              : (lang === 'tk' ? 'Adaty' : 'Обычная') }}
+          </span>
+          <span v-if="o.homeDelivery" style="font-size:14px">🏠</span>
+        </div>
         <span class="pill" :style="{ color: STATUS_CONFIG[o.status].color, background: STATUS_CONFIG[o.status].bg }">
           {{ STATUS_CONFIG[o.status][lang] }}
         </span>
@@ -73,7 +84,7 @@ const L = {
 
 .t-head, .t-row {
   display: grid;
-  grid-template-columns: 110px 1fr 80px 90px 120px 100px 80px;
+  grid-template-columns: 110px 1fr 80px 90px 130px 120px 100px 80px;
   padding: 10px 22px; gap: 8px; align-items: center;
 }
 .t-head { background: var(--surface); border-bottom: 1px solid var(--border-light); font-size: 10px; font-weight: 700; color: var(--subtle); text-transform: uppercase; letter-spacing: .06em; }
@@ -106,7 +117,7 @@ const L = {
 .row-enter-from, .row-leave-to { opacity: 0; transform: translateX(-6px); }
 
 @media (max-width: 960px) {
-  .t-head, .t-row { grid-template-columns: 100px 1fr 90px 120px 80px; }
+  .t-head, .t-row { grid-template-columns: 100px 1fr 90px 130px 120px 80px; }
   .hide-sm { display: none !important; }
 }
 @media (max-width: 600px) {

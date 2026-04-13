@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useUiStore } from '@/stores/ui'
-import { ordersApi, type Order, type OrderStatus } from '@/api/orders'
+import { ordersApi, type Order, type OrderStatus, type OrderLine } from '@/api/orders'
 import type { Lang } from '@/types'
+import type { ProductOption } from '@/api/products'
 import CreateOrderModal from '@/components/CreateOrderModal.vue'
 import { getErrorMessage } from '@/utils/error'
 
@@ -23,9 +24,6 @@ const createOpen   = ref(false)
 
 const toast = ref<{ msg: string; type: 'success' | 'error' } | null>(null)
 
-import type { OrderLine } from '@/api/orders'
-import type { ProductOption } from '@/api/products' // add this import if not already there
-
 function hasLineOptions(line: OrderLine): boolean {
   if (!line.options || !line.product?.options) return false
   return Object.keys(line.options).length > 0 &&
@@ -37,6 +35,7 @@ function getLineOptions(line: OrderLine): ProductOption[] {
   if (!line.product?.options || !Array.isArray(line.product.options)) return []
   return line.product.options.filter(opt => line.options?.[opt.id])
 }
+
 function showToast(msg: string, type: 'success' | 'error' = 'success') {
   toast.value = { msg, type }
   setTimeout(() => toast.value = null, 2800)
@@ -45,13 +44,19 @@ function showToast(msg: string, type: 'success' | 'error' = 'success') {
 async function load() {
   loading.value = true
   try {
-    const res = await ordersApi.list({ status: filter.value === 'ALL' ? undefined : filter.value, search: search.value || undefined, page: page.value })
+    const res = await ordersApi.list({
+      status: filter.value === 'ALL' ? undefined : filter.value,
+      search: search.value || undefined,
+      page:   page.value,
+    })
     orders.value = res.data.items
     total.value  = res.data.total
   } catch (err: unknown) {
     console.error('Failed to load orders:', err)
-    showToast(getErrorMessage(err) ?? 'Failed to load orders', 'error')
-  } finally { loading.value = false }
+    showToast(getErrorMessage(err, 'Failed to load orders'), 'error')
+  } finally {
+    loading.value = false
+  }
 }
 
 // ── Polling + tab-focus refresh ───────────────────────────────────────────────
@@ -63,8 +68,8 @@ function onVisibilityChange() {
 
 onMounted(() => {
   load()
-  pollTimer = setInterval(load, 30_000)                               // re-fetch every 30s
-  document.addEventListener('visibilitychange', onVisibilityChange)  // re-fetch on tab focus
+  pollTimer = setInterval(load, 30_000)
+  document.addEventListener('visibilitychange', onVisibilityChange)
 })
 
 onUnmounted(() => {
@@ -74,7 +79,10 @@ onUnmounted(() => {
 
 watch([filter, page], load)
 let st: ReturnType<typeof setTimeout>
-watch(search, () => { clearTimeout(st); st = setTimeout(() => { page.value = 1; load() }, 400) })
+watch(search, () => {
+  clearTimeout(st)
+  st = setTimeout(() => { page.value = 1; load() }, 400)
+})
 
 const STATUS_LABELS: Record<OrderStatus, Record<Lang, string>> = {
   PENDING:    { tk: 'Garaşylýar',  ru: 'Ожидание'  },
@@ -86,18 +94,21 @@ const STATUS_LABELS: Record<OrderStatus, Record<Lang, string>> = {
 const STATUS_OPTIONS: OrderStatus[] = ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']
 
 const filters = computed(() => [
-  { key: 'ALL', label: lang.value === 'tk' ? 'Hemmesi' : 'Все' },
+  { key: 'ALL' as const,             label: lang.value === 'tk' ? 'Hemmesi' : 'Все' },
   ...STATUS_OPTIONS.map(s => ({ key: s, label: STATUS_LABELS[s][lang.value] })),
 ])
 
 const stats = computed(() => {
-  const counts = STATUS_OPTIONS.reduce((a, s) => { a[s] = orders.value.filter(o => o.status === s).length; return a }, {} as Record<OrderStatus, number>)
+  const counts = STATUS_OPTIONS.reduce((a, s) => {
+    a[s] = orders.value.filter(o => o.status === s).length
+    return a
+  }, {} as Record<OrderStatus, number>)
   const l = lang.value
   return [
-    { label: l === 'tk' ? 'Jemi' : 'Всего',    value: total.value            },
-    { label: STATUS_LABELS.PENDING[l],           value: counts.PENDING    ?? 0 },
-    { label: STATUS_LABELS.PROCESSING[l],        value: counts.PROCESSING ?? 0 },
-    { label: STATUS_LABELS.DELIVERED[l],         value: counts.DELIVERED  ?? 0 },
+    { label: l === 'tk' ? 'Jemi' : 'Всего',  value: total.value            },
+    { label: STATUS_LABELS.PENDING[l],         value: counts.PENDING    ?? 0 },
+    { label: STATUS_LABELS.PROCESSING[l],      value: counts.PROCESSING ?? 0 },
+    { label: STATUS_LABELS.DELIVERED[l],       value: counts.DELIVERED  ?? 0 },
   ]
 })
 
@@ -109,8 +120,10 @@ async function updateStatus(order: Order, status: OrderStatus) {
     await load()
     showToast(lang.value === 'tk' ? 'Ýagdaý täzelendi' : 'Статус обновлён')
   } catch (err: unknown) {
-    showToast(getErrorMessage(err) ?? 'Error', 'error')
-  } finally { updating.value = false }
+    showToast(getErrorMessage(err), 'error')
+  } finally {
+    updating.value = false
+  }
 }
 
 async function confirmDelete() {
@@ -123,12 +136,19 @@ async function confirmDelete() {
     drawer.value = null
     await load()
   } catch (e: unknown) {
-    showToast(getErrorMessage(e) ?? 'Error', 'error')
-  } finally { deleting.value = false }
+    showToast(getErrorMessage(e), 'error')
+  } finally {
+    deleting.value = false
+  }
 }
 
 function fmt(n: number | string) { return Number(n).toFixed(2) }
-function fmtDate(d: string) { return new Date(d).toLocaleDateString(lang.value === 'tk' ? 'tk-TM' : 'ru-RU', { day: '2-digit', month: 'short', year: 'numeric' }) }
+function fmtDate(d: string) {
+  return new Date(d).toLocaleDateString(
+    lang.value === 'tk' ? 'tk-TM' : 'ru-RU',
+    { day: '2-digit', month: 'short', year: 'numeric' }
+  )
+}
 
 const subtotal = computed(() => {
   if (!drawer.value?.lines) return 0
@@ -168,14 +188,19 @@ const deliveryLabel = computed(() => {
     <!-- Toolbar -->
     <div class="toolbar">
       <div class="filter-tabs">
-        <button v-for="f in filters" :key="f.key" :class="['ftab', { active: filter === f.key }]" @click="filter = f.key as any; page = 1">{{ f.label }}</button>
+        <button
+          v-for="f in filters" :key="f.key"
+          :class="['ftab', { active: filter === f.key }]"
+          @click="filter = f.key; page = 1"
+        >{{ f.label }}</button>
       </div>
       <div class="search-wrap">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
         <input v-model="search" class="search" :placeholder="lang === 'tk' ? 'Gözle...' : 'Поиск...'" />
       </div>
 
-      <!-- Manual refresh button -->
       <button
         class="refresh-btn"
         :disabled="loading"
@@ -202,12 +227,13 @@ const deliveryLabel = computed(() => {
       <template v-else>
         <div class="table">
           <div class="t-head">
-            <span>{{ lang === 'tk' ? 'Sargyt' : 'Заказ' }}</span>
-            <span>{{ lang === 'tk' ? 'Müşderi' : 'Клиент' }}</span>
-            <span>{{ lang === 'tk' ? 'Sarylar' : 'Позиции' }}</span>
-            <span>{{ lang === 'tk' ? 'Jemi' : 'Сумма' }}</span>
-            <span>{{ lang === 'tk' ? 'Ýagdaý' : 'Статус' }}</span>
-            <span>{{ lang === 'tk' ? 'Sene' : 'Дата' }}</span>
+            <span>{{ lang === 'tk' ? 'Sargyt'   : 'Заказ'    }}</span>
+            <span>{{ lang === 'tk' ? 'Müşderi'  : 'Клиент'   }}</span>
+            <span>{{ lang === 'tk' ? 'Sarylar'  : 'Позиции'  }}</span>
+            <span>{{ lang === 'tk' ? 'Jemi'     : 'Сумма'    }}</span>
+            <span>{{ lang === 'tk' ? 'Eltip beriş' : 'Доставка' }}</span>
+            <span>{{ lang === 'tk' ? 'Ýagdaý'   : 'Статус'   }}</span>
+            <span>{{ lang === 'tk' ? 'Sene'     : 'Дата'     }}</span>
             <span></span>
           </div>
           <div v-for="o in orders" :key="o.id" class="t-row" @click="drawer = o">
@@ -218,15 +244,29 @@ const deliveryLabel = computed(() => {
             </div>
             <span class="cell-muted">{{ o.lines?.length ?? 0 }}</span>
             <span class="cell-bold">${{ fmt(o.total) }}</span>
+            <div class="delivery-cell">
+              <span :class="['badge', o.deliveryType === 'fast' ? 'fast' : 'simple']">
+                {{ o.deliveryType === 'fast'
+                  ? (lang === 'tk' ? 'Tiz' : 'Быстрая')
+                  : (lang === 'tk' ? 'Adaty' : 'Обычная') }}
+              </span>
+              <span v-if="o.homeDelivery" class="home-tag" title="Öýe eltip bermek">🏠</span>
+            </div>
             <span :class="['badge', o.status.toLowerCase()]">{{ STATUS_LABELS[o.status]?.[lang] }}</span>
             <span class="cell-muted">{{ fmtDate(o.createdAt) }}</span>
             <div class="actions" @click.stop>
               <button class="act-btn del" @click="deleteTarget = o">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                  <path d="M10 11v6"/><path d="M14 11v6"/>
+                </svg>
               </button>
             </div>
           </div>
-          <div v-if="!orders.length" class="empty">{{ lang === 'tk' ? 'Sargyt tapylmady' : 'Заказы не найдены' }}</div>
+          <div v-if="!orders.length" class="empty">
+            {{ lang === 'tk' ? 'Sargyt tapylmady' : 'Заказы не найдены' }}
+          </div>
         </div>
       </template>
     </div>
@@ -247,13 +287,28 @@ const deliveryLabel = computed(() => {
           <div class="drawer-section">
             <div class="section-title">{{ lang === 'tk' ? 'Müşderi' : 'Клиент' }}</div>
             <div class="info-card">
-              <div class="info-row"><span>{{ lang === 'tk' ? 'Ady' : 'Имя' }}</span><strong>{{ drawer.customer?.name }}</strong></div>
-              <div class="info-row"><span>{{ lang === 'tk' ? 'E-poçta' : 'Email' }}</span><strong>{{ drawer.customer?.email }}</strong></div>
-              <div class="info-row"><span>{{ lang === 'tk' ? 'Telefon' : 'Телефон' }}</span><strong>{{ drawer.customer?.phone }}</strong></div>
-              <div class="info-row"><span>{{ lang === 'tk' ? 'Salgy' : 'Адрес' }}</span><strong>{{ drawer.customer?.address }}</strong></div>
+              <div class="info-row">
+                <span>{{ lang === 'tk' ? 'Ady' : 'Имя' }}</span>
+                <strong>{{ drawer.customer?.name }}</strong>
+              </div>
+              <div class="info-row">
+                <span>{{ lang === 'tk' ? 'E-poçta' : 'Email' }}</span>
+                <strong>{{ drawer.customer?.email }}</strong>
+              </div>
+              <div class="info-row">
+                <span>{{ lang === 'tk' ? 'Telefon' : 'Телефон' }}</span>
+                <strong>{{ drawer.customer?.phone }}</strong>
+              </div>
+              <div class="info-row">
+                <span>{{ lang === 'tk' ? 'Salgy' : 'Адрес' }}</span>
+                <strong>{{ drawer.customer?.address }}</strong>
+              </div>
               <div class="info-row">
                 <span>{{ lang === 'tk' ? 'Eltip beriş görnüşi' : 'Тип доставки' }}</span>
-                <strong>{{ deliveryLabel }}{{ drawer.homeDelivery ? ' + 🏠' : '' }}</strong>
+                <strong>
+                  {{ deliveryLabel }}
+                  <em v-if="drawer.homeDelivery" class="delivery-tag">🏠</em>
+                </strong>
               </div>
             </div>
           </div>
@@ -269,13 +324,16 @@ const deliveryLabel = computed(() => {
                   <div class="line-qty">× {{ l.qty }}</div>
                   <div v-if="hasLineOptions(l)" class="line-options">
                     <span v-for="opt in getLineOptions(l)" :key="opt.id" class="line-opt">
-                      {{ lang === 'tk' ? opt.nameTk : opt.nameRu }}: <strong>{{ l.options?.[opt.id] }}</strong>
+                      {{ lang === 'tk' ? opt.nameTk : opt.nameRu }}:
+                      <strong>{{ l.options?.[opt.id] }}</strong>
                     </span>
                   </div>
                 </div>
                 <span class="line-price">${{ fmt(l.unitPrice * l.qty) }}</span>
               </div>
             </div>
+
+            <!-- Summary -->
             <div class="summary-section">
               <div class="summary-row">
                 <span>{{ lang === 'tk' ? 'Ara jemi' : 'Подытог' }}</span>
@@ -285,9 +343,15 @@ const deliveryLabel = computed(() => {
                 <span>
                   {{ lang === 'tk' ? 'Eltip beriş' : 'Доставка' }}
                   <em class="delivery-tag">{{ deliveryLabel }}</em>
-                  <em v-if="drawer.homeDelivery" class="delivery-tag">🏠</em>
                 </span>
                 <span>${{ fmt(deliveryCost) }}</span>
+              </div>
+              <div v-if="drawer.homeDelivery" class="summary-row">
+                <span>
+                  {{ lang === 'tk' ? 'Öýe eltip bermek' : 'Доставка домой' }}
+                  <em class="delivery-tag">🏠</em>
+                </span>
+                <span>$1.00</span>
               </div>
               <div class="summary-divider" />
               <div class="summary-row total">
@@ -307,10 +371,12 @@ const deliveryLabel = computed(() => {
           <div class="drawer-section">
             <div class="section-title">{{ lang === 'tk' ? 'Ýagdaýy üýtget' : 'Изменить статус' }}</div>
             <div class="status-btns">
-              <button v-for="s in STATUS_OPTIONS" :key="s"
+              <button
+                v-for="s in STATUS_OPTIONS" :key="s"
                 :class="['status-btn', s.toLowerCase(), { active: drawer.status === s }]"
                 :disabled="updating || drawer.status === s"
-                @click="updateStatus(drawer, s)">
+                @click="updateStatus(drawer, s)"
+              >
                 {{ STATUS_LABELS[s][lang] }}
               </button>
             </div>
@@ -327,10 +393,17 @@ const deliveryLabel = computed(() => {
             <h3>{{ lang === 'tk' ? 'Pozmagy tassykla' : 'Подтвердить удаление' }}</h3>
             <button class="close-btn" @click="deleteTarget = null">×</button>
           </div>
-          <div class="modal-body"><p>{{ lang === 'tk' ? `"#${deleteTarget?.id.slice(-6).toUpperCase()}" sargydyny pozmak isleýärsiňizmi?` : `Удалить заказ "#${deleteTarget?.id.slice(-6).toUpperCase()}"?` }}</p></div>
+          <div class="modal-body">
+            <p>{{ lang === 'tk'
+              ? `"#${deleteTarget?.id.slice(-6).toUpperCase()}" sargydyny pozmak isleýärsiňizmi?`
+              : `Удалить заказ "#${deleteTarget?.id.slice(-6).toUpperCase()}"?` }}
+            </p>
+          </div>
           <div class="modal-foot">
             <button class="cancel-btn" @click="deleteTarget = null">{{ lang === 'tk' ? 'Ýok' : 'Нет' }}</button>
-            <button class="del-confirm-btn" :disabled="deleting" @click="confirmDelete">{{ deleting ? '...' : (lang === 'tk' ? 'Hawa, poz' : 'Да, удалить') }}</button>
+            <button class="del-confirm-btn" :disabled="deleting" @click="confirmDelete">
+              {{ deleting ? '...' : (lang === 'tk' ? 'Hawa, poz' : 'Да, удалить') }}
+            </button>
           </div>
         </div>
       </div>
@@ -351,6 +424,7 @@ const deliveryLabel = computed(() => {
 .stat-card { background: var(--white); border-radius: var(--radius-lg); padding: 16px 20px; border: 1.5px solid var(--border-light); box-shadow: var(--shadow-sm); }
 .stat-value { font-size: 24px; font-weight: 800; color: var(--dark); font-family: var(--font-display); }
 .stat-label { font-size: 12px; color: var(--subtle); margin-top: 4px; }
+
 .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .filter-tabs { display: flex; gap: 4px; background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius-md); padding: 4px; flex-wrap: wrap; }
 .ftab { padding: 5px 12px; border-radius: var(--radius-sm); border: none; background: transparent; font-size: 12px; font-weight: 600; color: var(--subtle); cursor: pointer; font-family: var(--font-body); transition: all .15s; }
@@ -360,14 +434,7 @@ const deliveryLabel = computed(() => {
 .search { height: 38px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--white); padding: 0 12px 0 32px; font-size: 13px; font-family: var(--font-body); color: var(--dark); outline: none; width: 200px; }
 .search:focus { border-color: var(--gold); }
 
-/* Refresh button */
-.refresh-btn {
-  width: 38px; height: 38px;
-  border-radius: var(--radius-md); border: 1.5px solid var(--border);
-  background: var(--white); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  color: var(--muted); transition: all .15s; flex-shrink: 0;
-}
+.refresh-btn { width: 38px; height: 38px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--white); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted); transition: all .15s; flex-shrink: 0; }
 .refresh-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
 .refresh-btn:disabled { opacity: .5; cursor: not-allowed; }
 .refresh-btn svg { width: 15px; height: 15px; }
@@ -376,20 +443,24 @@ const deliveryLabel = computed(() => {
 .table-loading { display: flex; justify-content: center; padding: 60px; }
 .spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.t-head { display: grid; grid-template-columns: 90px 1.5fr 60px 80px 120px 100px 50px; gap: 8px; padding: 10px 20px; background: var(--surface); font-size: 11px; font-weight: 700; color: var(--subtle); text-transform: uppercase; letter-spacing: .04em; }
-.t-row { display: grid; grid-template-columns: 90px 1.5fr 60px 80px 120px 100px 50px; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border-light); align-items: center; cursor: pointer; transition: background .12s; }
+
+.t-head { display: grid; grid-template-columns: 90px 1.5fr 60px 80px 130px 120px 100px 50px; gap: 8px; padding: 10px 20px; background: var(--surface); font-size: 11px; font-weight: 700; color: var(--subtle); text-transform: uppercase; letter-spacing: .04em; }
+.t-row  { display: grid; grid-template-columns: 90px 1.5fr 60px 80px 130px 120px 100px 50px; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border-light); align-items: center; cursor: pointer; transition: background .12s; }
 .t-row:hover { background: var(--surface); }
-.order-id { font-size: 12px; font-weight: 700; color: var(--gold); font-family: monospace; }
+
+.order-id   { font-size: 12px; font-weight: 700; color: var(--gold); font-family: monospace; }
 .cust-name  { font-size: 13px; font-weight: 700; color: var(--dark); }
 .cust-email { font-size: 11px; color: var(--subtle); margin-top: 1px; }
 .cell-muted { font-size: 13px; color: var(--subtle); }
 .cell-bold  { font-size: 13px; font-weight: 700; color: var(--dark); }
+
 .badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: var(--radius-pill); font-size: 11px; font-weight: 700; }
 .badge.pending    { background: #FEF3C7; color: #92400E; }
 .badge.processing { background: #DBEAFE; color: #1E40AF; }
 .badge.shipped    { background: #EDE9FE; color: #5B21B6; }
 .badge.delivered  { background: #DCFCE7; color: #14532D; }
 .badge.cancelled  { background: #FEE2E2; color: #991B1B; }
+
 .actions { display: flex; gap: 6px; }
 .act-btn { width: 30px; height: 30px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--surface); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted); transition: all .15s; }
 .act-btn svg { width: 13px; height: 13px; }
@@ -409,31 +480,18 @@ const deliveryLabel = computed(() => {
 .info-row { display: flex; justify-content: space-between; font-size: 13px; }
 .info-row span { color: var(--subtle); }
 .info-row strong { color: var(--dark); }
+
 .lines { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
 .line-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--radius-md); background: var(--surface); }
 .line-img  { font-size: 22px; }
 .line-info { flex: 1; }
 .line-name { font-size: 13px; font-weight: 700; color: var(--dark); }
 .line-qty  { font-size: 12px; color: var(--subtle); margin-top: 2px; }
-.line-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 2px;
-}
-.line-opt {
-  font-size: 11px;
-  color: var(--subtle);
-  background: var(--surface);
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border-light);
-}
-.line-opt strong {
-  color: var(--gold);
-  font-weight: 700;
-}
+.line-options { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.line-opt { font-size: 11px; color: var(--subtle); background: var(--surface); padding: 1px 6px; border-radius: var(--radius-pill); border: 1px solid var(--border-light); }
+.line-opt strong { color: var(--gold); font-weight: 700; }
 .line-price { font-size: 14px; font-weight: 700; color: var(--dark); }
+
 .summary-section { display: flex; flex-direction: column; gap: 8px; }
 .summary-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--subtle); }
 .summary-row span:last-child { font-weight: 600; color: var(--dark); }
@@ -441,7 +499,9 @@ const deliveryLabel = computed(() => {
 .summary-row.total { font-size: 15px; padding-top: 8px; border-top: 1px solid var(--border-light); }
 .summary-row.total span { color: var(--dark); font-weight: 800; }
 .summary-row.total span:last-child { font-size: 18px; font-family: var(--font-display); color: var(--gold); }
+
 .note { font-size: 13px; color: var(--dark); background: var(--surface); border-radius: var(--radius-md); padding: 10px 12px; line-height: 1.5; }
+
 .status-btns { display: flex; flex-wrap: wrap; gap: 8px; }
 .status-btn { padding: 6px 14px; border-radius: var(--radius-pill); border: 1.5px solid var(--border); background: var(--surface); font-size: 12px; font-weight: 700; cursor: pointer; font-family: var(--font-body); transition: all .15s; color: var(--muted); }
 .status-btn:disabled { cursor: not-allowed; }
@@ -470,29 +530,22 @@ const deliveryLabel = computed(() => {
 .toast.error   { background: var(--error); color: var(--white); }
 .toast-enter-active, .toast-leave-active { transition: all .25s; }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(12px); }
+
 .drawer-enter-active, .drawer-leave-active { transition: opacity .2s; }
 .drawer-enter-active .drawer, .drawer-leave-active .drawer { transition: transform .25s cubic-bezier(.4,0,.2,1); }
 .drawer-enter-from .drawer, .drawer-leave-to .drawer { transform: translateX(100%); }
 .drawer-enter-from, .drawer-leave-to { opacity: 0; }
+
 .modal-enter-active, .modal-leave-active { transition: opacity .2s; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
-.new-order-btn {
-  height: 38px; padding: 0 18px;
-  border-radius: var(--radius-md); border: none;
-  background: var(--gold); color: var(--white);
-  font-size: 13px; font-weight: 700;
-  cursor: pointer; font-family: var(--font-body);
-  white-space: nowrap; transition: background .15s;
-}
+
+.new-order-btn { height: 38px; padding: 0 18px; border-radius: var(--radius-md); border: none; background: var(--gold); color: var(--white); font-size: 13px; font-weight: 700; cursor: pointer; font-family: var(--font-body); white-space: nowrap; transition: background .15s; }
 .new-order-btn:hover { background: var(--gold-dark); }
-.delivery-tag {
-  font-style: normal;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--gold);
-  background: rgba(232,160,32,.1);
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-  margin-left: 5px;
-}
+/* ADD to <style> */
+.delivery-cell { display: flex; align-items: center; gap: 5px; }
+.badge.fast   { background: #EDE9FE; color: #5B21B6; }
+.badge.simple { background: #F0FDF4; color: #14532D; }
+.home-tag     { font-size: 14px; line-height: 1; }
+
+.delivery-tag { font-style: normal; font-size: 10px; font-weight: 700; color: var(--gold); background: rgba(232,160,32,.1); padding: 1px 6px; border-radius: var(--radius-pill); margin-left: 5px; }
 </style>

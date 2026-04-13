@@ -58,6 +58,8 @@ export interface OrderItem {
   status:      OrderStatus
   date:        string
   note?:       string
+  deliveryType: 'simple' | 'fast'
+homeDelivery: boolean
 }
 
 // Used on Dashboard top-products widget
