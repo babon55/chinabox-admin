@@ -153,7 +153,9 @@ function openCreate() {
     nameTk: '', nameRu: '', categoryId: categories.value[0]?.id ?? '',
     image: '📦', imageUrl: null, imageUrls: [],
     price: 0, weightG: null, stock: 0,
-    status: 'ACTIVE', options: [], markup: 50
+    status: 'ACTIVE', options: [], markup: 50,
+    descriptionTk: null,
+    descriptionRu: null
   }
   formErrors.value   = {}
   imageEntries.value = []
@@ -165,6 +167,8 @@ function openEdit(p: Product) {
   form.value = {
     nameTk:     p.nameTk,
     nameRu:     p.nameRu,
+    descriptionTk: p.descriptionTk ?? null,
+    descriptionRu: p.descriptionRu ?? null,
     categoryId: p.categoryId,
     image:      p.image,
     imageUrl:   p.imageUrl ?? null,
@@ -471,6 +475,17 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
                 <label class="label">{{ lang === 'tk' ? 'Ady (RU)' : 'Название (RU)' }}</label>
                 <input v-model="form.nameRu" class="input" :class="{ error: formErrors.nameRu }" />
                 <span v-if="formErrors.nameRu" class="err">{{ formErrors.nameRu }}</span>
+              </div>
+              <!-- Description -->
+              <div class="field">
+                <label class="label">{{ lang === 'tk' ? 'Beýany (TK)' : 'Описание (TK)' }}</label>
+                <textarea v-model="form.descriptionTk" class="input textarea" rows="3"
+                  :placeholder="lang === 'tk' ? 'Türkmençe beýan...' : 'Описание на туркменском...'" />
+              </div>
+              <div class="field">
+                <label class="label">{{ lang === 'tk' ? 'Beýany (RU)' : 'Описание (RU)' }}</label>
+                <textarea v-model="form.descriptionRu" class="input textarea" rows="3"
+                  :placeholder="lang === 'tk' ? 'Rusça beýan...' : 'Описание на русском...'" />
               </div>
             </div>
 
@@ -787,6 +802,7 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
 .field { display: flex; flex-direction: column; gap: 5px; flex: 1; }
 .label { font-size: 12px; font-weight: 700; color: var(--dark); }
 .input { height: 40px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--surface); padding: 0 12px; font-size: 13px; font-family: var(--font-body); color: var(--dark); outline: none; width: 100%; box-sizing: border-box; }
+.textarea { height: auto !important; padding: 10px 12px; resize: vertical; min-height: 80px; line-height: 1.5; }
 .input:focus { border-color: var(--gold); background: var(--white); }
 .input.error { border-color: var(--error); }
 .err { font-size: 11px; color: var(--error); }

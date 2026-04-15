@@ -25,6 +25,8 @@
     id:         string
     nameTk:     string
     nameRu:     string
+    descriptionTk?: string | null
+    descriptionRu?: string | null
     categoryId: string
     category:   Category
     image:      string
@@ -44,6 +46,8 @@
   export interface ProductForm {
     nameTk:     string
     nameRu:     string
+    descriptionTk?: string | null
+    descriptionRu?: string | null
     categoryId: string
     image:      string
     imageUrl?:  string | null
