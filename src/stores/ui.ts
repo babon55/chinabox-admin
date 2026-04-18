@@ -20,6 +20,8 @@ export const useUiStore = defineStore('ui', () => {
     '/customers': { tk: 'Müşderiler',        ru: 'Клиенты'           },
     '/analytics': { tk: 'Statistika',        ru: 'Аналитика'         },
     '/settings':  { tk: 'Sazlamalar',        ru: 'Настройки'         },
+    '/requests':  { tk: 'Sargytlar',         ru: 'Заказы'            },
+    '/comments':  { tk: 'Sargytlar',         ru: 'Заказы'            },
   }
 
   function pageTitle(path: string) {

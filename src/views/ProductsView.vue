@@ -15,6 +15,22 @@ const SIMPLE_RATE = 7
 
 const MARKUP_OPTIONS = [0, 5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100]
 
+// ── Cascading category selector ───────────────────────────────────────────────
+const selectedParentId = ref<string>('')
+
+const rootCategories = computed(() =>
+  categories.value.filter(c => !c.parentId)
+)
+
+const currentSubCategories = computed(() =>
+  categories.value.find(c => c.id === selectedParentId.value)?.children ?? []
+)
+
+function onParentSelect(): void {
+  const subs = currentSubCategories.value
+  form.value.categoryId = subs.length > 0 ? (subs[0]?.id ?? '') : selectedParentId.value
+}
+
 function markedUpPrice(price: number | string, markup: number) {
   return Number(price) * (1 + markup / 100)
 }
@@ -160,6 +176,8 @@ function openCreate() {
   formErrors.value   = {}
   imageEntries.value = []
   showModal.value    = true
+  selectedParentId.value = rootCategories.value[0]?.id ?? ''
+  onParentSelect()
 }
 
 function openEdit(p: Product) {
@@ -189,6 +207,11 @@ function openEdit(p: Product) {
   if (imageEntries.value.length === 0 && p.imageUrl) {
     imageEntries.value = [{ file: null, preview: p.imageUrl, url: p.imageUrl, publicId: null, uploading: false }]
   }
+  // Pre-select the parent category
+  const allCats = categories.value.flatMap(c => [c, ...(c.children ?? [])])
+  const prodCat = allCats.find(c => c.id === p.categoryId)
+  selectedParentId.value = prodCat?.parentId ?? p.categoryId
+  onParentSelect()
   showModal.value = true
 }
 
@@ -491,11 +514,42 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
 
             <!-- Category + Status -->
             <div class="form-row">
+              <!-- Step 1: Parent category -->
               <div class="field">
-                <label class="label">{{ lang === 'tk' ? 'Kategoriýa' : 'Категория' }}</label>
-                <select v-model="form.categoryId" class="input">
-                  <option v-for="c in categories" :key="c.id" :value="c.id">{{ catName(c) }}</option>
+                <label class="label">
+                  {{ lang === 'tk' ? 'Esasy kategoriýa' : 'Основная категория' }}
+                </label>
+                <select v-model="selectedParentId" class="input" @change="onParentSelect">
+                  <option v-for="c in rootCategories" :key="c.id" :value="c.id">
+                    {{ catName(c) }}
+                  </option>
                 </select>
+              </div>
+
+              <!-- Step 2: Subcategory (only if parent has children) -->
+              <div v-if="currentSubCategories.length" class="field">
+                <label class="label">
+                  {{ lang === 'tk' ? 'Bölüm' : 'Подраздел' }}
+                  <span class="label-required">*</span>
+                </label>
+                <select v-model="form.categoryId" class="input" :class="{ error: formErrors.categoryId }">
+                  <option v-for="c in currentSubCategories" :key="c.id" :value="c.id">
+                    {{ catName(c) }}
+                  </option>
+                </select>
+                <span v-if="formErrors.categoryId" class="err">{{ formErrors.categoryId }}</span>
+              </div>
+
+              <!-- Hint when no subcategories -->
+              <div v-if="!currentSubCategories.length && selectedParentId" class="cat-direct-hint">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                {{ lang === 'tk'
+                  ? 'Bu kategoriýada bölümler ýok — önüm göni bu kategoriýa goşular'
+                  : 'В этой категории нет подразделов — товар будет добавлен напрямую' }}
               </div>
               <div class="field">
                 <label class="label">{{ lang === 'tk' ? 'Ýagdaý' : 'Статус' }}</label>
@@ -853,4 +907,18 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
 .markup-arrow { font-size: 11px; font-weight: 700; color: #059669; }
 .markup-final { font-size: 16px; font-weight: 800; color: #059669; font-family: var(--font-display); }
 .markup-hint  { font-size: 11px; color: #059669; font-weight: 600; }
+.label-required { color: var(--error); margin-left: 2px; }
+
+.cat-direct-hint {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--subtle);
+  background: var(--surface);
+  border: 1.5px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 9px 12px;
+  font-family: var(--font-body);
+}
 </style>

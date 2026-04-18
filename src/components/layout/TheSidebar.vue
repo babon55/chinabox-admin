@@ -41,6 +41,8 @@ const navItems = computed<NavItem[]>(() => [
   { key: 'analytics', label: { tk: 'Statistika',        ru: 'Аналитика'         }, icon: 'analytics', path: '/analytics'                                     },
   { key: 'settings',  label: { tk: 'Sazlamalar',        ru: 'Настройки'         }, icon: 'settings',  path: '/settings'                                      },
   { key: 'requests',  label: { tk: 'Talaplar',          ru: 'Запросы'           }, icon: 'requests',  path: '/requests', badge: newRequests.value || undefined   },
+  { key: 'comments',  label: { tk: 'Teswirler',         ru: 'Отзывы'            }, icon: 'comments',  path: '/comments'                                      },
+  { key: 'categories', label: { tk: 'Kategoriýalar',     ru: 'Категории'         }, icon: 'categories', path: '/categories'                                    },
 ])
 </script>
 
@@ -90,6 +92,10 @@ const navItems = computed<NavItem[]>(() => [
           <svg v-if="item.icon==='analytics'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>
           <svg v-if="item.icon==='settings'"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
           <svg v-if="item.icon==='requests'"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="12" y1="7" x2="12" y2="13"/></svg>
+          <svg v-if="item.icon==='comments'"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+          <svg v-if="item.icon==='categories'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
         </span>
 
         <Transition name="fade-slide">

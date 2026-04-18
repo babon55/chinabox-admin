@@ -1,6 +1,12 @@
   import { client } from './client'
 
-  export interface Category { id: string; nameTk: string; nameRu: string }
+  export interface Category {
+    id:       string
+    nameTk:   string
+    nameRu:   string
+    parentId?: string | null
+    children?: Category[]
+  }
 
   // ── Product Options ───────────────────────────────────────────────────────────
   export type OptionType = 'select' | 'number' | 'text'
@@ -81,7 +87,11 @@
     create:     (data: ProductForm)                     => client.post<Product>('/products', data),
     update:     (id: string, data: Partial<ProductForm>) => client.patch<Product>(`/products/${id}`, data),
     remove:     (id: string)                            => client.delete(`/products/${id}`),
-    categories: ()                                      => client.get<Category[]>('/products/categories/all'),
+    categories:     ()                                                    => client.get<Category[]>('/products/categories/all'),
+    categoriesFlat: ()                                                    => client.get<Category[]>('/products/categories/flat'),
+    createCategory: (data: { nameTk: string; nameRu: string; parentId?: string | null }) => client.post<Category>('/products/categories', data),
+    updateCategory: (id: string, data: { nameTk?: string; nameRu?: string; parentId?: string | null }) => client.patch<Category>(`/products/categories/${id}`, data),
+    deleteCategory: (id: string)                                          => client.delete(`/products/categories/${id}`),
   }
 
  export const uploadApi = {
