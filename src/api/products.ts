@@ -4,6 +4,7 @@
     id:       string
     nameTk:   string
     nameRu:   string
+    imageUrl?: string | null
     parentId?: string | null
     children?: Category[]
   }

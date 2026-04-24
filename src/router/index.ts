@@ -19,7 +19,7 @@ const router = createRouter({
     { path: '/analytics', name: 'analytics', component: () => import('@/views/AnalyticsView.vue') },
     { path: '/settings',  name: 'settings',  component: () => import('@/views/SettingsView.vue')  },
     { path: '/requests', name: 'requests', component: () => import('@/views/RequestsView.vue') },
-    { path: '/admin/comments', component: () => import('@/views/CommentView.vue') },
+    { path: '/comments', component: () => import('@/views/CommentView.vue') },
     { path: '/categories', name: 'categories', component: () => import('@/views/CategoriesView.vue') },
   ],
 })

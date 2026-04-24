@@ -14,7 +14,7 @@ const loading    = ref(true)
 const showModal  = ref(false)
 const saving     = ref(false)
 const editTarget = ref<Category | null>(null)
-const form       = ref({ nameTk: '', nameRu: '', parentId: null as string | null })
+const form = ref({ nameTk: '', nameRu: '', parentId: null as string | null, imageUrl: '' })
 const formErrors = ref<Record<string, string>>({})
 
 // Delete
@@ -51,14 +51,14 @@ const totalChildren = computed(() =>
 // ── Modal ─────────────────────────────────────────────────────────────────────
 function openCreate(parentId: string | null = null) {
   editTarget.value = null
-  form.value       = { nameTk: '', nameRu: '', parentId }
+  form.value       = { nameTk: '', nameRu: '', parentId, imageUrl: '' }
   formErrors.value = {}
   showModal.value  = true
 }
 
 function openEdit(cat: Category, parentId: string | null = null) {
   editTarget.value = cat
-  form.value       = { nameTk: cat.nameTk, nameRu: cat.nameRu, parentId }
+  form.value = { nameTk: cat.nameTk, nameRu: cat.nameRu, parentId, imageUrl: cat.imageUrl ?? '' }
   formErrors.value = {}
   showModal.value  = true
 }
@@ -176,7 +176,8 @@ function catName(c: Category) {
         <div class="cat-head">
           <div class="cat-head-left">
             <div class="cat-icon-wrap">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <img v-if="root.imageUrl" :src="root.imageUrl" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" />
+              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
               </svg>
             </div>
@@ -331,6 +332,11 @@ function catName(c: Category) {
                   : (lang === 'tk' ? 'mysal: Одежда' : 'например: Одежда')"
               />
               <span v-if="formErrors.nameRu" class="err">{{ formErrors.nameRu }}</span>
+            </div>
+
+            <div class="field">
+              <label class="label">🖼 {{ lang === 'tk' ? 'Surat (URL)' : 'Изображение (URL)' }}</label>
+              <input v-model="form.imageUrl" class="input" placeholder="https://..." />
             </div>
 
             <!-- Type indicator -->

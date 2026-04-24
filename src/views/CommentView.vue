@@ -32,11 +32,10 @@ function showToast(msg: string, type: 'success' | 'error' = 'success') {
 // ── Load products for filter dropdown ────────────────────────────────────────
 async function loadProducts() {
   try {
-    const res = await productsApi.list({ limit: 200, status: 'ACTIVE' })
+    const res = await productsApi.list({ limit: 100, status: 'ACTIVE' })  // ← was 200
     products.value = res.data.items
   } catch {}
 }
-
 // ── Load comments ─────────────────────────────────────────────────────────────
 async function load() {
   loading.value = true
