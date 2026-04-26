@@ -8,9 +8,9 @@ const saved  = ref(false)
 const saving = ref(false)
 
 const form = ref({
-  name:     { tk: 'SilkShop',    ru: 'SilkShop'      },
+  name:     { tk: 'ChinaExpress',    ru: 'ChinaExpress'      },
   tagline:  { tk: 'Iň gowy önümler', ru: 'Лучшие товары' },
-  email:    'info@silkshop.tm',
+  email:    'info@chinaexpress.tm',
   phone:    '+993 12 123456',
   address:  { tk: 'Aşgabat, Türkmenistan', ru: 'Ашхабад, Туркменистан' },
   currency: 'USD',

@@ -9,7 +9,7 @@ const saving = ref(false)
 
 const form = ref({
   name:     'Admin',
-  email:    'admin@silkshop.tm',
+  email:    'admin@chinaexpress.tm',
   phone:    '+993 12 000000',
   role:     'admin',
   avatar:   '👤',

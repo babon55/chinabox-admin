@@ -7,7 +7,7 @@ const auth = useAuthStore()
 const ui   = useUiStore()
 const lang = computed(() => ui.lang)
 
-const email    = ref('admin@silkshop.tm')
+const email    = ref('admin@chinaexpress.tm')
 const password = ref('')
 const showPw   = ref(false)
 
@@ -46,7 +46,7 @@ const L = computed(() => lang.value === 'tk' ? {
       <!-- Logo -->
       <div class="logo-wrap">
         <div class="logo">🛍️</div>
-        <h1 class="brand">SilkShop</h1>
+        <h1 class="brand">ChinaExpress</h1>
       </div>
 
       <h2 class="title">{{ L.title }}</h2>
