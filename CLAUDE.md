@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Silkshop-Admin is a Vue 3 + TypeScript admin panel for an e-commerce platform (Silk Shop). The application is bilingual (Turkmen/Russian) and manages products, orders, customers, analytics, and settings. It uses Pinia for state management, Vue Router for routing, and Axios for API communication with automatic token refresh.
+chinaexpress-Admin is a Vue 3 + TypeScript admin panel for an e-commerce platform (Silk Shop). The application is bilingual (Turkmen/Russian) and manages products, orders, customers, analytics, and settings. It uses Pinia for state management, Vue Router for routing, and Axios for API communication with automatic token refresh.
 
 ## Tech Stack
 
@@ -45,7 +45,7 @@ pnpm format
 
 ### High-Level Patterns
 
-- **Feature-based organization**: Views are organized by domain in `src/views/` (dashboard, products, orders, customers, analytics, settings, requests)
+- **Feature-based organization**: Views are organized by domain in `src/views/` (products, orders, customers, settings, requests)
 - **API layer**: Each domain has its own module in `src/api/` exporting typed interfaces and API functions
 - **State management**: Pinia stores (e.g., `auth`, `ui`) using the Composition API `defineStore` pattern
 - **Routing**: Vue Router with lazy-loaded route components and global `beforeEach` guard for authentication

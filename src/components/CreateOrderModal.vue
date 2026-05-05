@@ -68,6 +68,7 @@ interface LineItem {
   unitPrice:       number
   options?:        Record<string, string>
   optionsDisplay?: { name: string; value: string }[]
+  weightG?: number | null
 }
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -150,6 +151,7 @@ function pushLine(p: Product, opts: Record<string, string>) {
     unitPrice:      Number(p.price),
     options:        Object.keys(opts).length ? opts : undefined,
     optionsDisplay,
+    weightG: p.weightG ?? 0,
   })
   prodOpen.value   = false
   prodSearch.value = ''
@@ -172,7 +174,14 @@ function onPickerCancel() {
 
 function removeLine(idx: number) { lines.value.splice(idx, 1) }
 
-const total = computed(() => lines.value.reduce((s, l) => s + l.qty * l.unitPrice, 0))
+const RATES = { simple: 60, fast: 140 }
+
+const total = computed(() => {
+  const subtotal      = lines.value.reduce((s, l) => s + l.qty * l.unitPrice, 0)
+  const totalWeightKg = lines.value.reduce((s, l) => s + ((l.weightG ?? 0) * l.qty), 0) / 1000
+  const delivery      = totalWeightKg * RATES[deliveryType.value] + (homeDelivery.value ? 1 : 0)
+  return subtotal + delivery
+})
 
 function reset() {
   selectedCust.value  = null
@@ -274,7 +283,7 @@ async function submit() {
                     <span class="prod-thumb">{{ p.image ?? '📦' }}</span>
                     <div>
                       <p class="cust-name">{{ lang === 'tk' ? p.nameTk : p.nameRu }}</p>
-                      <p class="cust-email">${{ Number(p.price).toFixed(2) }}</p>
+                      <p class="cust-email">{{ Number(p.price).toFixed(2) }} TMT</p>
                     </div>
                   </button>
                 </div>
@@ -299,17 +308,16 @@ async function submit() {
                   <button class="qty-btn" @click="l.qty++">+</button>
                 </div>
                 <div class="line-price-wrap">
-                  <span class="line-unit">$</span>
                   <input v-model.number="l.unitPrice" type="number" min="0.01" step="0.01" class="price-inp" />
                 </div>
-                <span class="line-sub">${{ (l.qty * l.unitPrice).toFixed(2) }}</span>
+                <span class="line-sub">{{ (l.qty * l.unitPrice).toFixed(2) }} TMT</span>
                 <button class="rem-btn" @click="removeLine(i)">×</button>
               </div>
 
               <!-- Total -->
               <div class="lines-total">
                 <span>{{ L.total }}</span>
-                <strong>${{ total.toFixed(2) }}</strong>
+                <strong>{{ total.toFixed(2) }} TMT</strong>
               </div>
             </div>
 

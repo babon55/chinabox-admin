@@ -48,7 +48,7 @@ const L = {
 
         <!-- Revenue -->
         <div class="revenue">
-          <p class="rev-val">${{ item.revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</p>
+          <p class="rev-val">{{ item.revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} TMT</p>
           <p class="rev-label">{{ L[lang].revenue }}</p>
         </div>
       </div>

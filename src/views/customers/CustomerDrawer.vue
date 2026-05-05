@@ -125,7 +125,7 @@ const ORDER_STATUS: Record<OrderStatus, { color: string; bg: string; tk: string;
               </div>
               <div class="stat-card">
                 <p class="stat-label">{{ L.totalSpent }}</p>
-                <p class="stat-value">${{ customer.totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</p>
+                <p class="stat-value">{{ customer.totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} TMT</p>
               </div>
               <div class="stat-card">
                 <p class="stat-label">{{ L.joined }}</p>
@@ -169,7 +169,7 @@ const ORDER_STATUS: Record<OrderStatus, { color: string; bg: string; tk: string;
                   </span>
                   <span class="order-date">{{ o.date }}</span>
                 </div>
-                <span class="order-total">${{ o.total.toFixed(2) }}</span>
+                <span class="order-total">{{ o.total.toFixed(2) }} TMT</span>
               </div>
             </div>
           </template>

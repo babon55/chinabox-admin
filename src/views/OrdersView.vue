@@ -243,7 +243,7 @@ const deliveryLabel = computed(() => {
               <div class="cust-email">{{ o.customer?.email }}</div>
             </div>
             <span class="cell-muted">{{ o.lines?.length ?? 0 }}</span>
-            <span class="cell-bold">${{ fmt(o.total) }}</span>
+            <span class="cell-bold">{{ fmt(o.total) }} TMT</span>
             <div class="delivery-cell">
               <span :class="['badge', o.deliveryType === 'fast' ? 'fast' : 'simple']">
                 {{ o.deliveryType === 'fast'
@@ -329,7 +329,7 @@ const deliveryLabel = computed(() => {
                     </span>
                   </div>
                 </div>
-                <span class="line-price">${{ fmt(l.unitPrice * l.qty) }}</span>
+                <span class="line-price">{{ fmt(l.unitPrice * l.qty) }} TMT</span>
               </div>
             </div>
 
@@ -337,26 +337,26 @@ const deliveryLabel = computed(() => {
             <div class="summary-section">
               <div class="summary-row">
                 <span>{{ lang === 'tk' ? 'Ara jemi' : 'Подытог' }}</span>
-                <span>${{ fmt(subtotal) }}</span>
+                <span>{{ fmt(subtotal) }} TMT</span>
               </div>
               <div class="summary-row">
                 <span>
                   {{ lang === 'tk' ? 'Eltip beriş' : 'Доставка' }}
                   <em class="delivery-tag">{{ deliveryLabel }}</em>
                 </span>
-                <span>${{ fmt(deliveryCost) }}</span>
+                <span>{{ fmt(deliveryCost) }} TMT</span>
               </div>
               <div v-if="drawer.homeDelivery" class="summary-row">
                 <span>
                   {{ lang === 'tk' ? 'Öýe eltip bermek' : 'Доставка домой' }}
                   <em class="delivery-tag">🏠</em>
                 </span>
-                <span>$1.00</span>
+                <span>1.00 TMT</span>
               </div>
               <div class="summary-divider" />
               <div class="summary-row total">
                 <span>{{ lang === 'tk' ? 'Jemi' : 'Итого' }}</span>
-                <strong>${{ fmt(drawer.total) }}</strong>
+                <strong>{{ fmt(drawer.total) }} TMT</strong>
               </div>
             </div>
           </div>

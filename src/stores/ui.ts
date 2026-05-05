@@ -14,12 +14,10 @@ export const useUiStore = defineStore('ui', () => {
   )
 
   const pageTitles: Record<string, Record<Lang, string>> = {
-    '/dashboard': { tk: 'Dolandyryş paneli', ru: 'Панель управления' },
     '/products':  { tk: 'Önümler',           ru: 'Товары'            },
     '/orders':    { tk: 'Sargytlar',         ru: 'Заказы'            },
     '/customers': { tk: 'Müşderiler',        ru: 'Клиенты'           },
-    '/analytics': { tk: 'Statistika',        ru: 'Аналитика'         },
-    '/settings':  { tk: 'Sazlamalar',        ru: 'Настройки'         },
+'/settings':  { tk: 'Sazlamalar',        ru: 'Настройки'         },
     '/requests':  { tk: 'Sargytlar',         ru: 'Заказы'            },
     '/comments':  { tk: 'Sargytlar',         ru: 'Заказы'            },
   }

@@ -34,12 +34,10 @@ onUnmounted(() => clearInterval(timer))
 
 // ── Nav items ──────────────────────────────────────────────────
 const navItems = computed<NavItem[]>(() => [
-  { key: 'dashboard', label: { tk: 'Dolandyryş paneli', ru: 'Панель управления' }, icon: 'dashboard', path: '/dashboard'                                    },
   { key: 'products',  label: { tk: 'Önümler',           ru: 'Товары'            }, icon: 'products',  path: '/products'                                      },
   { key: 'orders',    label: { tk: 'Sargytlar',         ru: 'Заказы'            }, icon: 'orders',    path: '/orders',   badge: pendingOrders.value || undefined },
   { key: 'customers', label: { tk: 'Müşderiler',        ru: 'Клиенты'           }, icon: 'customers', path: '/customers'                                     },
-  { key: 'analytics', label: { tk: 'Statistika',        ru: 'Аналитика'         }, icon: 'analytics', path: '/analytics'                                     },
-  { key: 'settings',  label: { tk: 'Sazlamalar',        ru: 'Настройки'         }, icon: 'settings',  path: '/settings'                                      },
+{ key: 'settings',  label: { tk: 'Sazlamalar',        ru: 'Настройки'         }, icon: 'settings',  path: '/settings'                                      },
   { key: 'requests',  label: { tk: 'Talaplar',          ru: 'Запросы'           }, icon: 'requests',  path: '/requests', badge: newRequests.value || undefined   },
   { key: 'comments',  label: { tk: 'Teswirler',         ru: 'Отзывы'            }, icon: 'comments',  path: '/comments'                                      },
   { key: 'categories', label: { tk: 'Kategoriýalar',     ru: 'Категории'         }, icon: 'categories', path: '/categories'                                    },
@@ -60,7 +58,7 @@ const navItems = computed<NavItem[]>(() => [
       </div>
       <Transition name="fade-slide">
         <div v-if="!ui.collapsed" class="logo-text">
-          <span class="logo-name">China_Box</span>
+          <span class="logo-name">ChinaExpress</span>
           <span class="logo-sub">Admin</span>
         </div>
       </Transition>
@@ -85,12 +83,10 @@ const navItems = computed<NavItem[]>(() => [
         :title="ui.collapsed ? item.label[ui.lang] : undefined"
       >
         <span class="icon">
-          <svg v-if="item.icon==='dashboard'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
           <svg v-if="item.icon==='products'"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
           <svg v-if="item.icon==='orders'"    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
           <svg v-if="item.icon==='customers'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          <svg v-if="item.icon==='analytics'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>
-          <svg v-if="item.icon==='settings'"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+<svg v-if="item.icon==='settings'"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
           <svg v-if="item.icon==='requests'"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="12" y1="7" x2="12" y2="13"/></svg>
           <svg v-if="item.icon==='comments'"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
           <svg v-if="item.icon==='categories'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">

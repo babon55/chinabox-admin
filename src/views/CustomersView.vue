@@ -65,7 +65,7 @@ const stats = computed(() => {
     { label: l === 'tk' ? 'Jemi müşderi'      : 'Всего клиентов',  value: total.value },
     { label: l === 'tk' ? 'Işjeň'             : 'Активные',        value: customers.value.filter(c => c.status === 'ACTIVE').length  },
     { label: l === 'tk' ? 'Bloklanan'         : 'Заблокированные', value: customers.value.filter(c => c.status === 'BLOCKED').length },
-    { label: l === 'tk' ? 'Umumy satyn alyş'  : 'Общие покупки',   value: `$${customers.value.reduce((s, c) => s + (c.totalSpent ?? 0), 0).toFixed(2)}` },
+    { label: l === 'tk' ? 'Umumy satyn alyş'  : 'Общие покупки',   value: `${customers.value.reduce((s, c) => s + (c.totalSpent ?? 0), 0).toFixed(2)} TMT` },
   ]
 })
 
@@ -190,7 +190,7 @@ function fmtDate(d: string) { return new Date(d).toLocaleDateString(lang.value =
             </div>
             <span class="cell-muted">{{ c.phone }}</span>
             <span class="cell-muted">{{ c._count?.orders ?? 0 }}</span>
-            <span class="cell-bold">${{ fmt(c.totalSpent ?? 0) }}</span>
+            <span class="cell-bold">{{ fmt(c.totalSpent ?? 0) }} TMT</span>
             <span :class="['badge', c.status.toLowerCase()]">{{ c.status === 'ACTIVE' ? (lang === 'tk' ? 'Işjeň' : 'Активный') : (lang === 'tk' ? 'Blokly' : 'Заблокирован') }}</span>
             <span class="cell-muted">{{ fmtDate(c.createdAt) }}</span>
             <div class="actions" @click.stop>
@@ -238,7 +238,7 @@ function fmtDate(d: string) { return new Date(d).toLocaleDateString(lang.value =
                   <div class="mini-lbl">{{ lang === 'tk' ? 'Sargytlar' : 'Заказы' }}</div>
                 </div>
                 <div class="mini-stat">
-                  <div class="mini-val">${{ fmt(drawer.totalSpent ?? 0) }}</div>
+                  <div class="mini-val">{{ fmt(drawer.totalSpent ?? 0) }} TMT</div>
                   <div class="mini-lbl">{{ lang === 'tk' ? 'Jemi' : 'Потрачено' }}</div>
                 </div>
                 <div class="mini-stat">
@@ -264,7 +264,7 @@ function fmtDate(d: string) { return new Date(d).toLocaleDateString(lang.value =
                   <div class="order-mdate">{{ fmtDate(o.createdAt) }}</div>
                 </div>
                 <span :class="['badge', o.status.toLowerCase()]">{{ STATUS_LABELS[o.status]?.[lang] }}</span>
-                <strong class="order-mtotal">${{ fmt(o.total) }}</strong>
+                <strong class="order-mtotal">{{ fmt(o.total) }} TMT</strong>
               </div>
             </div>
           </template>

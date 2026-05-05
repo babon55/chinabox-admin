@@ -65,7 +65,7 @@ function avatarColor(name: string) {
         <span class="orders-num">{{ c.totalOrders }}</span>
 
         <!-- Spent -->
-        <span class="spent">${{ c.totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
+        <span class="spent">{{ c.totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} TMT</span>
 
         <!-- Joined -->
         <span class="dim hide-sm">{{ c.joined }}</span>

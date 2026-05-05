@@ -46,7 +46,7 @@ const L = {
           </div>
         </div>
         <span class="dim hide-sm">{{ o.lines.length }} {{ L[lang].ea }}</span>
-        <span class="bold">${{ o.total.toFixed(2) }}</span>
+        <span class="bold">{{ o.total.toFixed(2) }} TMT</span>
         <div class="delivery-cell">
           <span class="pill" :style="o.deliveryType === 'fast'
             ? { color: '#5B21B6', background: 'rgba(139,92,246,.12)' }

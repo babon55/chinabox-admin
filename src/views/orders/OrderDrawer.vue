@@ -4,7 +4,7 @@ import type { OrderItem, OrderStatus, Lang } from '@/types'
 
 const deliveryCost = computed(() => {
   if (!props.order) return 0
-  const homeFee = props.order.homeDelivery ? 1 : 0
+  const homeFee = props.order.homeDelivery ? 20 : 0
   return Math.max(0, props.order.total - subtotal.value - homeFee)
 })
 
@@ -152,9 +152,9 @@ const subtotal = computed(() =>
                 <div class="line-info">
                   <p class="line-name">{{ line.name[lang] }}</p>
                   <!-- Options display removed; use OrdersView drawer instead -->
-                  <p class="line-meta">{{ line.qty }} {{ L.qty }} × ${{ line.unitPrice.toFixed(2) }}</p>
+                  <p class="line-meta">{{ line.qty }} {{ L.qty }} × {{ line.unitPrice.toFixed(2) }} TMT</p>
                 </div>
-                <span class="line-total">${{ (line.qty * line.unitPrice).toFixed(2) }}</span>
+                <span class="line-total">{{ (line.qty * line.unitPrice).toFixed(2) }} TMT</span>
               </div>
             </div>
           </div>
@@ -165,22 +165,22 @@ const subtotal = computed(() =>
             <div class="summary-box">
               <div class="sum-row">
                 <span>{{ L.subtotal }}</span>
-                <span>${{ subtotal.toFixed(2) }}</span>
+                <span>{{ subtotal.toFixed(2) }} TMT</span>
               </div>
               <div class="sum-row">
                 <span>
                   {{ L.shipping }}
                   <em class="delivery-tag">{{ deliveryLabel }}</em>
                 </span>
-                <span>${{ deliveryCost.toFixed(2) }}</span>
+                <span>{{ deliveryCost.toFixed(2) }} TMT</span>
               </div>
               <div v-if="order.homeDelivery" class="sum-row">
                 <span>{{ lang === 'tk' ? 'Öýe eltip bermek' : 'Доставка домой' }} 🏠</span>
-                <span>$1.00</span>
+                <span>20.00 TMT</span>
               </div>
               <div class="sum-row total-row">
                 <span>{{ L.total }}</span>
-                <span>${{ order.total.toFixed(2) }}</span>
+                <span>{{ order.total.toFixed(2) }} TMT</span>
               </div>
             </div>
           </div>

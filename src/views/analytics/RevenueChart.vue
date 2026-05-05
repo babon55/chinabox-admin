@@ -39,7 +39,7 @@ const yTicks = computed(() => {
   return [0, 1, 2, 3, 4].map(i => minVal.value + step * i)
 })
 
-function fmt(v: number) { return v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v}` }
+function fmt(v: number) { return v >= 1000 ? `${((v / 1000).toFixed(1))}k TMT` : `${v} TMT` }
 
 const hovered = ref<number | null>(null)
 const L = { tk: { title: 'Girdeji dinamikasy', total: 'Döwür üçin jemi' }, ru: { title: 'Динамика выручки', total: 'Итого за период' } }
@@ -51,7 +51,7 @@ const total = computed(() => props.points.reduce((s, p) => s + p.value, 0))
     <div class="card-head">
       <div>
         <p class="sub-label">{{ L[lang].title }}</p>
-        <p class="total-val">${{ total.toLocaleString() }} <span class="sub-dim">{{ L[lang].total }}</span></p>
+        <p class="total-val">{{ total.toLocaleString() }} TMT <span class="sub-dim">{{ L[lang].total }}</span></p>
       </div>
       <div class="legend">
         <span class="legend-line" />

@@ -10,8 +10,8 @@ const ui   = useUiStore()
 const lang = computed(() => ui.lang)
 
 // ── Delivery rate constants ───────────────────────────────────────────────────
-const FAST_RATE   = 11
-const SIMPLE_RATE = 7
+const FAST_RATE   = 140
+const SIMPLE_RATE = 60
 
 const MARKUP_OPTIONS = [0, 5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100]
 
@@ -327,13 +327,13 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
       <div class="rate-item fast">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
         <span>{{ lang === 'tk' ? 'Tiz eltip beriş (7-15 gün)' : 'Быстрая доставка (7-15 дней)' }}</span>
-        <strong>${{ FAST_RATE }}/kg</strong>
+        <strong>{{ FAST_RATE }} TMT/kg</strong>
       </div>
       <div class="rate-divider"></div>
       <div class="rate-item simple">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-        <span>{{ lang === 'tk' ? 'Adaty eltip beriş (15-30 gün)' : 'Обычная доставка (15-30 дней)' }}</span>
-        <strong>${{ SIMPLE_RATE }}/kg</strong>
+        <span>{{ lang === 'tk' ? 'Adaty eltip beriş (30-45 gün)' : 'Обычная доставка (30-45 дней)' }}</span>
+        <strong>{{ SIMPLE_RATE }} TMT/kg</strong>
       </div>
     </div>
 
@@ -367,7 +367,7 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
             <span>{{ lang === 'tk' ? 'Müşderi bahasy' : 'Цена клиента' }}</span>
             <span>{{ lang === 'tk' ? 'Agram' : 'Вес' }}</span>
             <span class="fast-col">⚡ {{ lang === 'tk' ? 'Tiz (7-15g)' : 'Быстрая' }}</span>
-            <span class="simple-col">🚚 {{ lang === 'tk' ? 'Adaty (15-30g)' : 'Обычная' }}</span>
+            <span class="simple-col">🚚 {{ lang === 'tk' ? 'Adaty (30-45g)' : 'Обычная' }}</span>
             <span>{{ lang === 'tk' ? 'Ätiýaç' : 'Склад' }}</span>
             <span>{{ lang === 'tk' ? 'Satylan' : 'Продано' }}</span>
             <span>{{ lang === 'tk' ? 'Ýagdaý' : 'Статус' }}</span>
@@ -390,12 +390,12 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
               </div>
             </div>
             <span class="cell-muted">{{ lang === 'tk' ? p.category?.nameTk : p.category?.nameRu }}</span>
-            <span class="cell-bold">${{ fmt(p.price) }}</span>
+            <span class="cell-bold">{{ fmt(p.price) }} TMT</span>
             <span class="markup-badge">+{{ p.markup ?? 50 }}%</span>
-            <span class="cell-client-price">${{ fmt(markedUpPrice(p.price, p.markup ?? 50)) }}</span>
+            <span class="cell-client-price">{{ fmt(markedUpPrice(p.price, p.markup ?? 50)) }} TMT</span>
             <span class="cell-muted">{{ fmtWeight(p.weightG) }}</span>
-            <span class="cell-fast">${{ fmt(totalPrice(p.price, p.weightG, FAST_RATE)) }}</span>
-            <span class="cell-simple">${{ fmt(totalPrice(p.price, p.weightG, SIMPLE_RATE)) }}</span>
+            <span class="cell-fast">{{ fmt(totalPrice(p.price, p.weightG, FAST_RATE)) }} TMT</span>
+            <span class="cell-simple">{{ fmt(totalPrice(p.price, p.weightG, SIMPLE_RATE)) }} TMT</span>
             <div class="stock-cell">
               <span :class="['stock-num', { low: p.stock <= 10, out: p.stock === 0 }]">{{ p.stock }}</span>
               <div class="stock-bar">
@@ -564,7 +564,7 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
             <!-- Price + Stock -->
             <div class="form-row">
               <div class="field">
-                <label class="label">{{ lang === 'tk' ? 'Önüm bahasy ($)' : 'Цена товара ($)' }}</label>
+                <label class="label">{{ lang === 'tk' ? 'Önüm bahasy (TMT)' : 'Цена товара (TMT)' }}</label>
                 <input v-model.number="form.price" type="number" step="0.01" class="input" :class="{ error: formErrors.price }" />
                 <span v-if="formErrors.price" class="err">{{ formErrors.price }}</span>
               </div>
@@ -582,18 +582,18 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
               <div class="markup-row">
                 <select v-model.number="form.markup" class="input markup-select">
                   <option v-for="m in MARKUP_OPTIONS" :key="m" :value="m">
-                    {{ m }}% → ${{ fmt(markedUpPrice(form.price, m)) }}
+                    {{ m }}% → {{ fmt(markedUpPrice(form.price, m)) }} TMT
                   </option>
                 </select>
                 <div class="markup-preview">
                   <span class="markup-arrow">↑{{ form.markup }}%</span>
-                  <span class="markup-final">${{ fmt(markedUpPrice(form.price, form.markup)) }}</span>
+                  <span class="markup-final">{{ fmt(markedUpPrice(form.price, form.markup)) }} TMT</span>
                 </div>
               </div>
               <span class="markup-hint">
                 {{ lang === 'tk'
-                  ? `Müşderi $${fmt(markedUpPrice(form.price, form.markup))} töleýär`
-                  : `Клиент заплатит $${fmt(markedUpPrice(form.price, form.markup))}` }}
+                  ? `Müşderi ${fmt(markedUpPrice(form.price, form.markup))} TMT töleýär`
+                  : `Клиент заплатит ${fmt(markedUpPrice(form.price, form.markup))} TMT` }}
               </span>
             </div>
 
@@ -631,10 +631,10 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
                     <span class="d-days">7–15 {{ lang === 'tk' ? 'gün' : 'дней' }}</span>
                   </div>
                   <div class="d-breakdown">
-                    <span class="d-line">{{ lang === 'tk' ? 'Önüm' : 'Товар' }}: ${{ fmt(form.price) }}</span>
-                    <span class="d-line">{{ lang === 'tk' ? 'Eltip beriş' : 'Доставка' }}: ${{ fmt(calcDelivery(form.weightG, FAST_RATE)) }}</span>
+                    <span class="d-line">{{ lang === 'tk' ? 'Önüm' : 'Товар' }}: {{ fmt(form.price) }} TMT</span>
+                    <span class="d-line">{{ lang === 'tk' ? 'Eltip beriş' : 'Доставка' }}: {{ fmt(calcDelivery(form.weightG, FAST_RATE)) }} TMT</span>
                   </div>
-                  <div class="d-total">${{ fmt(totalPrice(form.price, form.weightG, FAST_RATE)) }}</div>
+                  <div class="d-total">{{ fmt(totalPrice(form.price, form.weightG, FAST_RATE)) }} TMT</div>
                 </div>
                 <div class="delivery-option simple">
                   <div class="d-option-head">
@@ -642,10 +642,10 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
                     <span class="d-days">15–30 {{ lang === 'tk' ? 'gün' : 'дней' }}</span>
                   </div>
                   <div class="d-breakdown">
-                    <span class="d-line">{{ lang === 'tk' ? 'Önüm' : 'Товар' }}: ${{ fmt(form.price) }}</span>
-                    <span class="d-line">{{ lang === 'tk' ? 'Eltip beriş' : 'Доставка' }}: ${{ fmt(calcDelivery(form.weightG, SIMPLE_RATE)) }}</span>
+                    <span class="d-line">{{ lang === 'tk' ? 'Önüm' : 'Товар' }}: {{ fmt(form.price) }} TMT</span>
+                    <span class="d-line">{{ lang === 'tk' ? 'Eltip beriş' : 'Доставка' }}: {{ fmt(calcDelivery(form.weightG, SIMPLE_RATE)) }} TMT</span>
                   </div>
-                  <div class="d-total">${{ fmt(totalPrice(form.price, form.weightG, SIMPLE_RATE)) }}</div>
+                  <div class="d-total">{{ fmt(totalPrice(form.price, form.weightG, SIMPLE_RATE)) }} TMT</div>
                 </div>
               </div>
             </div>

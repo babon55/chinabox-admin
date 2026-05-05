@@ -25,7 +25,7 @@ export const useAuthStore = defineStore('auth', () => {
       user.value         = data.user
       localStorage.setItem('access_token',  data.accessToken)
       localStorage.setItem('refresh_token', data.refreshToken)
-      await router.push('/dashboard')
+      await router.push('/products')
     } catch (e: any) {
       error.value = e.response?.data?.message ?? 'Login failed'
       throw e

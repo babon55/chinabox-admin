@@ -10,34 +10,9 @@ export interface NavItem {
   badge?: number
 }
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
-export interface StatCard {
-  key:    string
-  label:  Record<Lang, string>
-  value:  string
-  change: number
-  icon:   string
-  color:  string
-}
-
-export interface ChartPoint {
-  label: string
-  value: number
-}
-
 export type OrderStatus = 'PENDING' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED'
 
-// Slim shape used on Dashboard
-export interface Order {
-  id:       string
-  customer: string
-  items:    number
-  total:    number
-  status:   OrderStatus
-  date:     string
-}
-
-// Full shape used in Orders view
+// Slim order shape
 export interface OrderLine {
   productId:   string
   name:        Record<Lang, string>
@@ -62,7 +37,7 @@ export interface OrderItem {
 homeDelivery: boolean
 }
 
-// Used on Dashboard top-products widget
+// Product summary shape
 export interface Product {
   id:      string
   name:    Record<Lang, string>
