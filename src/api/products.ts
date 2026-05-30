@@ -90,8 +90,8 @@
     remove:     (id: string)                            => client.delete(`/products/${id}`),
     categories:     ()                                                    => client.get<Category[]>('/products/categories/all'),
     categoriesFlat: ()                                                    => client.get<Category[]>('/products/categories/flat'),
-    createCategory: (data: { nameTk: string; nameRu: string; parentId?: string | null }) => client.post<Category>('/products/categories', data),
-    updateCategory: (id: string, data: { nameTk?: string; nameRu?: string; parentId?: string | null }) => client.patch<Category>(`/products/categories/${id}`, data),
+    createCategory: (data: { nameTk: string; nameRu: string; parentId?: string | null; imageUrl?: string | null }) => client.post<Category>('/products/categories', data),
+    updateCategory: (id: string, data: { nameTk?: string; nameRu?: string; parentId?: string | null; imageUrl?: string | null }) => client.patch<Category>(`/products/categories/${id}`, data),
     deleteCategory: (id: string)                                          => client.delete(`/products/categories/${id}`),
   }
 

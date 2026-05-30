@@ -80,6 +80,7 @@ async function save() {
         nameTk:   form.value.nameTk,
         nameRu:   form.value.nameRu,
         parentId: form.value.parentId,
+        imageUrl: form.value.imageUrl || null,
       })
       showToast(lang.value === 'tk' ? 'Kategoriýa täzelendi' : 'Категория обновлена')
     } else {
@@ -87,6 +88,7 @@ async function save() {
         nameTk:   form.value.nameTk,
         nameRu:   form.value.nameRu,
         parentId: form.value.parentId,
+        imageUrl: form.value.imageUrl || null,
       })
       showToast(lang.value === 'tk' ? 'Kategoriýa goşuldy' : 'Категория добавлена')
     }
