@@ -168,7 +168,7 @@ function openCreate() {
   form.value = {
     nameTk: '', nameRu: '', categoryId: categories.value[0]?.id ?? '',
     image: '📦', imageUrl: null, imageUrls: [],
-    price: 0, weightG: null, stock: 0,
+    price: 0, weightG: null, stock: 999,
     status: 'ACTIVE', options: [], markup: 50,
     descriptionTk: null,
     descriptionRu: null
@@ -567,10 +567,6 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
                 <label class="label">{{ lang === 'tk' ? 'Önüm bahasy (TMT)' : 'Цена товара (TMT)' }}</label>
                 <input v-model.number="form.price" type="number" step="0.01" class="input" :class="{ error: formErrors.price }" />
                 <span v-if="formErrors.price" class="err">{{ formErrors.price }}</span>
-              </div>
-              <div class="field">
-                <label class="label">{{ lang === 'tk' ? 'Ätiýaç (sany)' : 'Склад (шт)' }}</label>
-                <input v-model.number="form.stock" type="number" class="input" />
               </div>
             </div>
 
