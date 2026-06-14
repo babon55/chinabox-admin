@@ -73,7 +73,7 @@ interface ImageEntry {
 const imageEntries   = ref<ImageEntry[]>([])
 const imageUploading = ref(false)
 const fileInputRef   = ref<HTMLInputElement | null>(null)
-const MAX_IMAGES     = 8
+const MAX_IMAGES     = 50
 
 // Delete
 const deleteTarget = ref<Product | null>(null)
