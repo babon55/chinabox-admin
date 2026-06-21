@@ -368,7 +368,7 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
             <span>{{ lang === 'tk' ? 'Agram' : 'Вес' }}</span>
             <span class="fast-col">⚡ {{ lang === 'tk' ? 'Tiz (7-15g)' : 'Быстрая' }}</span>
             <span class="simple-col">🚚 {{ lang === 'tk' ? 'Adaty (30-45g)' : 'Обычная' }}</span>
-            <span>{{ lang === 'tk' ? 'Ätiýaç' : 'Склад' }}</span>
+            <span>{{ lang === 'tk' ? 'Elýeterlilik' : 'Доступность' }}</span>
             <span>{{ lang === 'tk' ? 'Satylan' : 'Продано' }}</span>
             <span>{{ lang === 'tk' ? 'Ýagdaý' : 'Статус' }}</span>
             <span></span>

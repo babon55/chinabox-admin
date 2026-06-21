@@ -318,7 +318,14 @@ const deliveryLabel = computed(() => {
             <div class="section-title">{{ lang === 'tk' ? 'Önümler' : 'Товары' }}</div>
             <div class="lines">
               <div v-for="l in drawer.lines" :key="l.id" class="line-row">
-                <span class="line-img">{{ l.product?.image ?? '📦' }}</span>
+                <div class="line-img-wrap">
+                  <img
+                    v-if="l.product?.imageUrls?.length || l.product?.imageUrl"
+                    :src="l.product.imageUrls?.[0] ?? l.product.imageUrl ?? ''"
+                    class="line-img-real"
+                  />
+                  <span v-else class="line-img">{{ l.product?.image ?? '📦' }}</span>
+                </div>
                 <div class="line-info">
                   <div class="line-name">{{ lang === 'tk' ? l.product?.nameTk : l.product?.nameRu }}</div>
                   <div class="line-qty">× {{ l.qty }}</div>
@@ -484,6 +491,8 @@ const deliveryLabel = computed(() => {
 .lines { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
 .line-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--radius-md); background: var(--surface); }
 .line-img  { font-size: 22px; }
+.line-img-wrap { width: 38px; height: 38px; border-radius: var(--radius-md); overflow: hidden; flex-shrink: 0; background: var(--white); border: 1.5px solid var(--border-light); display: flex; align-items: center; justify-content: center; }
+.line-img-real { width: 100%; height: 100%; object-fit: cover; }
 .line-info { flex: 1; }
 .line-name { font-size: 13px; font-weight: 700; color: var(--dark); }
 .line-qty  { font-size: 12px; color: var(--subtle); margin-top: 2px; }
