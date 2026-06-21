@@ -396,12 +396,9 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
             <span class="cell-muted">{{ fmtWeight(p.weightG) }}</span>
             <span class="cell-fast">{{ fmt(totalPrice(p.price, p.weightG, FAST_RATE)) }} TMT</span>
             <span class="cell-simple">{{ fmt(totalPrice(p.price, p.weightG, SIMPLE_RATE)) }} TMT</span>
-            <div class="stock-cell">
-              <span :class="['stock-num', { low: p.stock <= 10, out: p.stock === 0 }]">{{ p.stock }}</span>
-              <div class="stock-bar">
-                <div class="stock-fill" :style="{ width: Math.min(p.stock / 100 * 100, 100) + '%', background: p.stock === 0 ? '#EF4444' : p.stock <= 10 ? '#F59E0B' : '#22C55E' }"></div>
-              </div>
-            </div>
+            <span :class="['avail-badge', p.stock > 0 ? 'in' : 'out']">
+              {{ p.stock > 0 ? (lang === 'tk' ? 'Elýeterli' : 'Доступен') : (lang === 'tk' ? 'Elýeterli däl' : 'Недоступен') }}
+            </span>
             <span class="cell-muted">{{ p.sold }}</span>
             <span :class="['badge', p.status.toLowerCase()]">{{ STATUS_LABELS[p.status]?.[lang] }}</span>
             <div class="actions">
@@ -745,6 +742,9 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
 .cell-client-price { font-size: 13px; font-weight: 800; color: #059669; }
 
 .stock-cell { display: flex; flex-direction: column; gap: 4px; }
+.avail-badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: var(--radius-pill); font-size: 11px; font-weight: 700; white-space: nowrap; }
+.avail-badge.in  { background: #DCFCE7; color: #14532D; }
+.avail-badge.out { background: #FEE2E2; color: #991B1B; }
 .stock-num { font-size: 13px; font-weight: 700; color: var(--dark); }
 .stock-num.low { color: #F59E0B; }
 .stock-num.out { color: #EF4444; }
