@@ -60,20 +60,16 @@ async function load() {
 }
 
 // ── Polling + tab-focus refresh ───────────────────────────────────────────────
-let pollTimer: ReturnType<typeof setInterval>
-
 function onVisibilityChange() {
   if (document.visibilityState === 'visible') load()
 }
 
 onMounted(() => {
   load()
-  pollTimer = setInterval(load, 30_000)
   document.addEventListener('visibilitychange', onVisibilityChange)
 })
 
 onUnmounted(() => {
-  clearInterval(pollTimer)
   document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 

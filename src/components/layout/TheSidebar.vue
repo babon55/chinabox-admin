@@ -25,12 +25,17 @@ async function fetchCounts() {
   } catch {}
 }
 
-let timer: ReturnType<typeof setInterval>
+function onVisibilityChange() {
+  if (document.visibilityState === 'visible') fetchCounts()
+}
+
 onMounted(() => {
   fetchCounts()
-  timer = setInterval(fetchCounts, 30_000)
+  document.addEventListener('visibilitychange', onVisibilityChange)
 })
-onUnmounted(() => clearInterval(timer))
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+})
 
 // ── Nav items ──────────────────────────────────────────────────
 const navItems = computed<NavItem[]>(() => [
