@@ -9,6 +9,8 @@ import { getErrorMessage } from '@/utils/error'
 const ui   = useUiStore()
 const lang = computed(() => ui.lang)
 
+const PAGE_SIZE = 20
+
 // ── Delivery rate constants ───────────────────────────────────────────────────
 const FAST_RATE   = 140
 const SIMPLE_RATE = 60
@@ -91,7 +93,7 @@ async function load() {
   loading.value = true
   try {
     const [prodRes, catRes] = await Promise.all([
-      productsApi.list({ status: filter.value === 'ALL' ? undefined : filter.value, search: search.value || undefined, page: page.value }),
+      productsApi.list({ status: filter.value === 'ALL' ? undefined : filter.value, search: search.value || undefined, page: page.value, limit: PAGE_SIZE }),
       categories.value.length ? Promise.resolve(null) : productsApi.categories(),
     ])
     products.value = prodRes.data.items
@@ -115,6 +117,8 @@ const stats = computed(() => {
     { label: l === 'tk' ? 'Arhiw'        : 'Архив',         value: products.value.filter(p => p.status === 'ARCHIVED').length },
   ]
 })
+
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE)))
 
 const filters = computed(() => [
   { key: 'ALL',      label: lang.value === 'tk' ? 'Hemmesi' : 'Все'      },
@@ -411,6 +415,17 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
             </div>
           </div>
           <div v-if="!products.length" class="empty">{{ lang === 'tk' ? 'Önüm tapylmady' : 'Товары не найдены' }}</div>
+        </div>
+        <div v-if="totalPages > 1" class="pagination">
+          <button class="page-btn" :disabled="page === 1" @click="page--">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <span class="page-info">
+            {{ lang === 'tk' ? 'Sahypa' : 'Страница' }} {{ page }} / {{ totalPages }}
+          </span>
+          <button class="page-btn" :disabled="page === totalPages" @click="page++">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
         </div>
       </template>
     </div>
@@ -716,6 +731,13 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
 .t-head { display: grid; grid-template-columns: 2fr 1fr 80px 70px 110px 65px 110px 110px 1fr 60px 100px 72px; gap: 8px; padding: 10px 20px; background: var(--surface); font-size: 11px; font-weight: 700; color: var(--subtle); text-transform: uppercase; letter-spacing: .04em; }
 .t-row  { display: grid; grid-template-columns: 2fr 1fr 80px 70px 110px 65px 110px 110px 1fr 60px 100px 72px; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border-light); align-items: center; transition: background .12s; }
 .t-row:hover { background: var(--surface); }
+
+.pagination { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 14px 20px; border-top: 1px solid var(--border-light); }
+.page-btn { width: 32px; height: 32px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--surface); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted); transition: all .15s; }
+.page-btn svg { width: 14px; height: 14px; }
+.page-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+.page-btn:disabled { opacity: .4; cursor: not-allowed; }
+.page-info { font-size: 13px; font-weight: 600; color: var(--subtle); white-space: nowrap; }
 
 .fast-col   { color: #F59E0B !important; }
 .simple-col { color: #3B82F6 !important; }
