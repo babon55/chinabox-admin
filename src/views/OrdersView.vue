@@ -10,20 +10,46 @@ import { getErrorMessage } from '@/utils/error'
 const ui   = useUiStore()
 const lang = computed((): Lang => ui.lang)
 
-const orders       = ref<Order[]>([])
-const total        = ref(0)
-const page         = ref(1)
-const loading      = ref(true)
-const search       = ref('')
-const filter       = ref<'ALL' | OrderStatus>('ALL')
+// ── State: data ────────────────────────────────────────────────────────────
+const orders = ref<Order[]>([])
+const total  = ref(0)
+const loading = ref(true)
+
+// ── State: pagination ───────────────────────────────────────────────────────
+const PAGE_SIZE  = 10
+const page       = ref(1)
+const pageInput  = ref('')
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE)))
+
+// ── State: filters & search ──────────────────────────────────────────────────
+const search = ref('')
+const filter = ref<'ALL' | OrderStatus>('ALL')
+
+// ── State: drawer / modals ────────────────────────────────────────────────────
 const drawer       = ref<Order | null>(null)
 const updating     = ref(false)
 const deleteTarget = ref<Order | null>(null)
 const deleting     = ref(false)
 const createOpen   = ref(false)
 
+// ── State: toast ──────────────────────────────────────────────────────────────
 const toast = ref<{ msg: string; type: 'success' | 'error' } | null>(null)
+function showToast(msg: string, type: 'success' | 'error' = 'success') {
+  toast.value = { msg, type }
+  setTimeout(() => toast.value = null, 2800)
+}
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+const STATUS_LABELS: Record<OrderStatus, Record<Lang, string>> = {
+  PENDING:    { tk: 'Garaşylýar',  ru: 'Ожидание'  },
+  PROCESSING: { tk: 'Işlenilýär',  ru: 'В работе'  },
+  SHIPPED:    { tk: 'Ugradyldy',   ru: 'Отправлен' },
+  DELIVERED:  { tk: 'Gowşuryldy', ru: 'Доставлен' },
+  CANCELLED:  { tk: 'Ýatyryldy',  ru: 'Отменён'   },
+}
+const STATUS_OPTIONS: OrderStatus[] = ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']
+
+// ── Helpers: line options ──────────────────────────────────────────────────────
 function hasLineOptions(line: OrderLine): boolean {
   if (!line.options || !line.product?.options) return false
   return Object.keys(line.options).length > 0 &&
@@ -36,11 +62,16 @@ function getLineOptions(line: OrderLine): ProductOption[] {
   return line.product.options.filter(opt => line.options?.[opt.id])
 }
 
-function showToast(msg: string, type: 'success' | 'error' = 'success') {
-  toast.value = { msg, type }
-  setTimeout(() => toast.value = null, 2800)
+// ── Helpers: formatting ────────────────────────────────────────────────────────
+function fmt(n: number | string) { return Number(n).toFixed(2) }
+function fmtDate(d: string) {
+  return new Date(d).toLocaleDateString(
+    lang.value === 'tk' ? 'tk-TM' : 'ru-RU',
+    { day: '2-digit', month: 'short', year: 'numeric' }
+  )
 }
 
+// ── Data fetching ───────────────────────────────────────────────────────────────
 async function load() {
   loading.value = true
   try {
@@ -48,6 +79,7 @@ async function load() {
       status: filter.value === 'ALL' ? undefined : filter.value,
       search: search.value || undefined,
       page:   page.value,
+      limit:  PAGE_SIZE,
     })
     orders.value = res.data.items
     total.value  = res.data.total
@@ -59,7 +91,17 @@ async function load() {
   }
 }
 
-// ── Polling + tab-focus refresh ───────────────────────────────────────────────
+function goToPage() {
+  const n = parseInt(pageInput.value)
+  if (!n || n < 1 || n > totalPages.value) {
+    showToast(lang.value === 'tk' ? 'Nädogry sahypa belgisi' : 'Неверный номер страницы', 'error')
+    return
+  }
+  page.value = n
+  pageInput.value = ''
+}
+
+// ── Lifecycle + watchers ───────────────────────────────────────────────────────
 function onVisibilityChange() {
   if (document.visibilityState === 'visible') load()
 }
@@ -74,23 +116,16 @@ onUnmounted(() => {
 })
 
 watch([filter, page], load)
-let st: ReturnType<typeof setTimeout>
+
+let searchTimer: ReturnType<typeof setTimeout>
 watch(search, () => {
-  clearTimeout(st)
-  st = setTimeout(() => { page.value = 1; load() }, 400)
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => { page.value = 1; load() }, 400)
 })
 
-const STATUS_LABELS: Record<OrderStatus, Record<Lang, string>> = {
-  PENDING:    { tk: 'Garaşylýar',  ru: 'Ожидание'  },
-  PROCESSING: { tk: 'Işlenilýär',  ru: 'В работе'  },
-  SHIPPED:    { tk: 'Ugradyldy',   ru: 'Отправлен' },
-  DELIVERED:  { tk: 'Gowşuryldy', ru: 'Доставлен' },
-  CANCELLED:  { tk: 'Ýatyryldy',  ru: 'Отменён'   },
-}
-const STATUS_OPTIONS: OrderStatus[] = ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']
-
+// ── Computed: derived display data ─────────────────────────────────────────────
 const filters = computed(() => [
-  { key: 'ALL' as const,             label: lang.value === 'tk' ? 'Hemmesi' : 'Все' },
+  { key: 'ALL' as const, label: lang.value === 'tk' ? 'Hemmesi' : 'Все' },
   ...STATUS_OPTIONS.map(s => ({ key: s, label: STATUS_LABELS[s][lang.value] })),
 ])
 
@@ -101,13 +136,33 @@ const stats = computed(() => {
   }, {} as Record<OrderStatus, number>)
   const l = lang.value
   return [
-    { label: l === 'tk' ? 'Jemi' : 'Всего',  value: total.value            },
-    { label: STATUS_LABELS.PENDING[l],         value: counts.PENDING    ?? 0 },
-    { label: STATUS_LABELS.PROCESSING[l],      value: counts.PROCESSING ?? 0 },
-    { label: STATUS_LABELS.DELIVERED[l],       value: counts.DELIVERED  ?? 0 },
+    { label: l === 'tk' ? 'Jemi' : 'Всего',     value: total.value            },
+    { label: STATUS_LABELS.PENDING[l],            value: counts.PENDING    ?? 0 },
+    { label: STATUS_LABELS.PROCESSING[l],         value: counts.PROCESSING ?? 0 },
+    { label: STATUS_LABELS.DELIVERED[l],          value: counts.DELIVERED  ?? 0 },
   ]
 })
 
+const subtotal = computed(() => {
+  if (!drawer.value?.lines) return 0
+  return drawer.value.lines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0)
+})
+
+const deliveryCost = computed(() => {
+  if (!drawer.value) return 0
+  return Math.max(0, drawer.value.total - subtotal.value)
+})
+
+const deliveryLabel = computed(() => {
+  if (!drawer.value) return ''
+  const map = {
+    simple: { tk: 'Adaty', ru: 'Обычная' },
+    fast:   { tk: 'Tiz',   ru: 'Быстрая' },
+  }
+  return map[drawer.value.deliveryType]?.[lang.value] ?? ''
+})
+
+// ── Actions: status & delete ───────────────────────────────────────────────────
 async function updateStatus(order: Order, status: OrderStatus) {
   updating.value = true
   try {
@@ -137,33 +192,6 @@ async function confirmDelete() {
     deleting.value = false
   }
 }
-
-function fmt(n: number | string) { return Number(n).toFixed(2) }
-function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString(
-    lang.value === 'tk' ? 'tk-TM' : 'ru-RU',
-    { day: '2-digit', month: 'short', year: 'numeric' }
-  )
-}
-
-const subtotal = computed(() => {
-  if (!drawer.value?.lines) return 0
-  return drawer.value.lines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0)
-})
-
-const deliveryCost = computed(() => {
-  if (!drawer.value) return 0
-  return Math.max(0, drawer.value.total - subtotal.value)
-})
-
-const deliveryLabel = computed(() => {
-  if (!drawer.value) return ''
-  const map = {
-    simple: { tk: 'Adaty',  ru: 'Обычная' },
-    fast:   { tk: 'Tiz',    ru: 'Быстрая' },
-  }
-  return map[drawer.value.deliveryType]?.[lang.value] ?? ''
-})
 </script>
 
 <template>
@@ -262,6 +290,35 @@ const deliveryLabel = computed(() => {
           </div>
           <div v-if="!orders.length" class="empty">
             {{ lang === 'tk' ? 'Sargyt tapylmady' : 'Заказы не найдены' }}
+          </div>
+        </div>
+        <!-- Pagination -->
+        <div v-if="totalPages > 1" class="pagination">
+          <button class="page-btn" :disabled="page === 1" @click="page--">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+
+          <span class="page-info">
+            {{ lang === 'tk' ? 'Sahypa' : 'Страница' }} {{ page }} / {{ totalPages }}
+          </span>
+
+          <button class="page-btn" :disabled="page === totalPages" @click="page++">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+
+          <div class="page-jump">
+            <input
+              v-model="pageInput"
+              type="number"
+              min="1"
+              :max="totalPages"
+              class="page-jump-input"
+              :placeholder="lang === 'tk' ? 'Sahypa №' : '№ страницы'"
+              @keyup.enter="goToPage"
+            />
+            <button class="page-jump-btn" @click="goToPage">
+              {{ lang === 'tk' ? 'Geç' : 'Перейти' }}
+            </button>
           </div>
         </div>
       </template>
@@ -450,6 +507,19 @@ const deliveryLabel = computed(() => {
 .t-head { display: grid; grid-template-columns: 90px 1.5fr 60px 80px 130px 120px 100px 50px; gap: 8px; padding: 10px 20px; background: var(--surface); font-size: 11px; font-weight: 700; color: var(--subtle); text-transform: uppercase; letter-spacing: .04em; }
 .t-row  { display: grid; grid-template-columns: 90px 1.5fr 60px 80px 130px 120px 100px 50px; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border-light); align-items: center; cursor: pointer; transition: background .12s; }
 .t-row:hover { background: var(--surface); }
+
+.pagination { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 14px 20px; border-top: 1px solid var(--border-light); flex-wrap: wrap; }
+.page-btn { width: 32px; height: 32px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--surface); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted); transition: all .15s; flex-shrink: 0; }
+.page-btn svg { width: 14px; height: 14px; }
+.page-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+.page-btn:disabled { opacity: .4; cursor: not-allowed; }
+.page-info { font-size: 13px; font-weight: 600; color: var(--subtle); white-space: nowrap; }
+
+.page-jump { display: flex; align-items: center; gap: 6px; margin-left: 8px; }
+.page-jump-input { width: 70px; height: 32px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--white); padding: 0 8px; font-size: 13px; font-family: var(--font-body); color: var(--dark); outline: none; text-align: center; }
+.page-jump-input:focus { border-color: var(--gold); }
+.page-jump-btn { height: 32px; padding: 0 12px; border-radius: var(--radius-md); border: none; background: var(--gold); color: var(--white); font-size: 12px; font-weight: 700; cursor: pointer; font-family: var(--font-body); transition: background .15s; }
+.page-jump-btn:hover { background: var(--gold-dark); }
 
 .order-id   { font-size: 12px; font-weight: 700; color: var(--gold); font-family: monospace; }
 .cust-name  { font-size: 13px; font-weight: 700; color: var(--dark); }
