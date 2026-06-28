@@ -102,6 +102,16 @@ async function load() {
   } finally { loading.value = false }
 }
 
+function goToPage() {
+  const n = parseInt(pageInput.value)
+  if (!n || n < 1 || n > totalPages.value) {
+    showToast(lang.value === 'tk' ? 'Nädogry sahypa belgisi' : 'Неверный номер страницы', 'error')
+    return
+  }
+  page.value = n
+  pageInput.value = ''
+}
+
 onMounted(load)
 watch([filter, page], load)
 let searchTimer: ReturnType<typeof setTimeout>
@@ -119,6 +129,7 @@ const stats = computed(() => {
 })
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE)))
+const pageInput   = ref('')
 
 const filters = computed(() => [
   { key: 'ALL',      label: lang.value === 'tk' ? 'Hemmesi' : 'Все'      },
@@ -426,6 +437,21 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
           <button class="page-btn" :disabled="page === totalPages" @click="page++">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
+
+          <div class="page-jump">
+            <input
+              v-model="pageInput"
+              type="number"
+              min="1"
+              :max="totalPages"
+              class="page-jump-input"
+              :placeholder="lang === 'tk' ? 'Sahypa №' : '№ страницы'"
+              @keyup.enter="goToPage"
+            />
+            <button class="page-jump-btn" @click="goToPage">
+              {{ lang === 'tk' ? 'Geç' : 'Перейти' }}
+            </button>
+          </div>
         </div>
       </template>
     </div>
@@ -738,6 +764,11 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
 .page-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
 .page-btn:disabled { opacity: .4; cursor: not-allowed; }
 .page-info { font-size: 13px; font-weight: 600; color: var(--subtle); white-space: nowrap; }
+.page-jump { display: flex; align-items: center; gap: 6px; margin-left: 8px; }
+.page-jump-input { width: 70px; height: 32px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--white); padding: 0 8px; font-size: 13px; font-family: var(--font-body); color: var(--dark); outline: none; text-align: center; }
+.page-jump-input:focus { border-color: var(--gold); }
+.page-jump-btn { height: 32px; padding: 0 12px; border-radius: var(--radius-md); border: none; background: var(--gold); color: var(--white); font-size: 12px; font-weight: 700; cursor: pointer; font-family: var(--font-body); transition: background .15s; }
+.page-jump-btn:hover { background: var(--gold-dark); }
 
 .fast-col   { color: #F59E0B !important; }
 .simple-col { color: #3B82F6 !important; }
