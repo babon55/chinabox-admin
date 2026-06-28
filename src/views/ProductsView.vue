@@ -347,7 +347,7 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
       <div class="rate-divider"></div>
       <div class="rate-item simple">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-        <span>{{ lang === 'tk' ? 'Adaty eltip beriş (30-45 gün)' : 'Обычная доставка (30-45 дней)' }}</span>
+        <span>{{ lang === 'tk' ? 'Adaty eltip beriş (25-35 gün)' : 'Обычная доставка (25-35 дней)' }}</span>
         <strong>{{ SIMPLE_RATE }} TMT/kg</strong>
       </div>
     </div>
@@ -382,7 +382,7 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
             <span>{{ lang === 'tk' ? 'Müşderi bahasy' : 'Цена клиента' }}</span>
             <span>{{ lang === 'tk' ? 'Agram' : 'Вес' }}</span>
             <span class="fast-col">⚡ {{ lang === 'tk' ? 'Tiz (7-15g)' : 'Быстрая' }}</span>
-            <span class="simple-col">🚚 {{ lang === 'tk' ? 'Adaty (30-45g)' : 'Обычная' }}</span>
+            <span class="simple-col">🚚 {{ lang === 'tk' ? 'Adaty (25-35g)' : 'Обычная' }}</span>
             <span>{{ lang === 'tk' ? 'Elýeterlilik' : 'Доступность' }}</span>
             <span>{{ lang === 'tk' ? 'Satylan' : 'Продано' }}</span>
             <span>{{ lang === 'tk' ? 'Ýagdaý' : 'Статус' }}</span>
