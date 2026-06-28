@@ -6,6 +6,12 @@ import { productsApi, uploadApi, type Product, type ProductForm, type Category }
 import ProductOptionsEditor from '@/components/ProductOptionsEditor.vue'
 import { getErrorMessage } from '@/utils/error'
 
+import * as XLSX from 'xlsx'
+
+const importFileInputRef = ref<HTMLInputElement | null>(null)
+const importing     = ref(false)
+const importSummary = ref<{ created: number; failed: number; results: { row: number; status: string; error?: string }[] } | null>(null)
+
 const ui   = useUiStore()
 const lang = computed(() => ui.lang)
 
@@ -164,6 +170,48 @@ function onFileChange(e: Event) {
     })
   }
   if (fileInputRef.value) fileInputRef.value.value = ''
+}
+
+async function onImportFile(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  importing.value = true
+  importSummary.value = null
+  try {
+    const buf = await file.arrayBuffer()
+    const wb = XLSX.read(buf, { type: 'array' })
+    const firstSheetName = wb.SheetNames[0]
+    const sheet = wb.Sheets['Products'] ?? (firstSheetName ? wb.Sheets[firstSheetName] : undefined)
+
+    if (!sheet) {
+      showToast(lang.value === 'tk' ? 'Faýlda sahypa tapylmady' : 'В файле не найдено листов', 'error')
+      return
+    }
+
+const rawRows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet)
+    // Skip fully blank rows (e.g. trailing empty rows in the sheet)
+    const rows = rawRows.filter(r => r.nameTk && String(r.nameTk).trim().length > 0)
+
+    if (!rows.length) {
+      showToast(lang.value === 'tk' ? 'Faýlda haryt tapylmady' : 'В файле не найдено товаров', 'error')
+      return
+    }
+
+    const res = await productsApi.bulkImport(rows)
+    importSummary.value = res.data
+    showToast(
+      lang.value === 'tk'
+        ? `${res.data.created} haryt goşuldy${res.data.failed ? `, ${res.data.failed} näsazlyk` : ''}`
+        : `${res.data.created} товаров добавлено${res.data.failed ? `, ${res.data.failed} ошибок` : ''}`,
+      res.data.failed > 0 ? 'error' : 'success'
+    )
+    await load()
+  } catch (err: unknown) {
+    showToast(getErrorMessage(err, 'Import failed'), 'error')
+  } finally {
+    importing.value = false
+    if (importFileInputRef.value) importFileInputRef.value.value = ''
+  }
 }
 
 function removeImage(idx: number) {
@@ -362,11 +410,45 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input v-model="search" class="search" :placeholder="lang === 'tk' ? 'Gözle...' : 'Поиск...'" />
         </div>
+        <button class="import-btn" :disabled="importing" @click="importFileInputRef?.click()">
+          <svg v-if="!importing" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <svg v-else class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+          {{ importing ? (lang === 'tk' ? 'Import edilýär...' : 'Импортируется...') : (lang === 'tk' ? 'Excel-den import' : 'Импорт из Excel') }}
+        </button>
         <button class="add-btn" @click="openCreate">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           {{ lang === 'tk' ? 'Önüm goş' : 'Добавить' }}
         </button>
       </div>
+    </div>
+
+    <input
+      ref="importFileInputRef"
+      type="file"
+      accept=".xlsx,.xls,.csv"
+      class="file-input"
+      @change="onImportFile"
+    />
+
+    <div v-if="importSummary" :class="['import-summary', { 'has-errors': importSummary.failed > 0 }]">
+      <div class="import-summary-head">
+        <span>
+          ✅ {{ importSummary.created }} {{ lang === 'tk' ? 'goşuldy' : 'добавлено' }}
+          <template v-if="importSummary.failed">
+            · ⚠️ {{ importSummary.failed }} {{ lang === 'tk' ? 'näsazlyk' : 'ошибок' }}
+          </template>
+        </span>
+        <button class="import-summary-close" @click="importSummary = null">×</button>
+      </div>
+      <ul v-if="importSummary.failed" class="import-summary-errors">
+        <li v-for="r in importSummary.results.filter(r => r.status === 'failed')" :key="r.row">
+          {{ lang === 'tk' ? 'Setir' : 'Строка' }} {{ r.row }}: {{ r.error }}
+        </li>
+      </ul>
     </div>
 
     <!-- Table -->
@@ -825,6 +907,17 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
 .modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
 .modal-body p { font-size: 14px; color: var(--dark); }
 .modal-foot { display: flex; gap: 10px; justify-content: flex-end; padding: 14px 24px; border-top: 1px solid var(--border-light); flex-shrink: 0; }
+
+.import-btn { height: 38px; padding: 0 16px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--white); color: var(--muted); font-size: 13px; font-weight: 700; font-family: var(--font-body); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all .15s; }
+.import-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+.import-btn:disabled { opacity: .6; cursor: not-allowed; }
+.import-btn svg { width: 14px; height: 14px; }
+
+.import-summary { background: #F0FDF4; border: 1.5px solid #86EFAC; border-radius: var(--radius-lg); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+.import-summary.has-errors { background: #FEF3C7; border-color: #FCD34D; }
+.import-summary-head { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 700; color: var(--dark); }
+.import-summary-close { width: 24px; height: 24px; border-radius: 50%; border: none; background: rgba(0,0,0,.06); font-size: 16px; cursor: pointer; color: var(--muted); line-height: 1; }
+.import-summary-errors { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #92400E; max-height: 160px; overflow-y: auto; padding-left: 4px; }
 
 /* ── Multi-image grid ── */
 .label-count { font-weight: 400; color: var(--subtle); margin-left: 4px; }

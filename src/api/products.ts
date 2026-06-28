@@ -88,6 +88,8 @@
     create:     (data: ProductForm)                     => client.post<Product>('/products', data),
     update:     (id: string, data: Partial<ProductForm>) => client.patch<Product>(`/products/${id}`, data),
     remove:     (id: string)                            => client.delete(`/products/${id}`),
+    bulkImport: (rows: Record<string, any>[]) =>
+      client.post('/products/bulk-import', { rows }),
     categories:     ()                                                    => client.get<Category[]>('/products/categories/all'),
     categoriesFlat: ()                                                    => client.get<Category[]>('/products/categories/flat'),
     createCategory: (data: { nameTk: string; nameRu: string; parentId?: string | null; imageUrl?: string | null }) => client.post<Category>('/products/categories', data),
